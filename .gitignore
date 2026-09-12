@@ -1,0 +1,80 @@
+# ─────────────────────────────────────────────────────────────
+# Python
+# ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+*.spec
+
+# ─────────────────────────────────────────────────────────────
+# Virtual Environments
+# ─────────────────────────────────────────────────────────────
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ─────────────────────────────────────────────────────────────
+# Data Files (large raw/processed datasets — not for version control)
+# ─────────────────────────────────────────────────────────────
+data/raw/*.csv
+data/processed/*.csv
+
+# ─────────────────────────────────────────────────────────────
+# Model Outputs (generated files — reproducible from scripts)
+# ─────────────────────────────────────────────────────────────
+outputs/*.csv
+outputs/*.png
+outputs/*.jpg
+
+# Keep the calibration file (small, important for reproducibility)
+!outputs/model_residual_std.txt
+
+# ─────────────────────────────────────────────────────────────
+# Trained Model Artifacts (if saved in future)
+# ─────────────────────────────────────────────────────────────
+*.pkl
+*.joblib
+*.model
+*.xgb
+*.cbm
+
+# ─────────────────────────────────────────────────────────────
+# Jupyter Notebooks checkpoints
+# ─────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─────────────────────────────────────────────────────────────
+# IDE & OS Files
+# ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─────────────────────────────────────────────────────────────
+# Logs & Temp Files
+# ─────────────────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.orig
