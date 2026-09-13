@@ -148,24 +148,42 @@ The core business logic originates directly from 5 analytical Jupyter notebooks:
 
 ## 📊 Dataset Schema & Input Features
 
-### Raw Categoricals & Variables
+The dataset (`data/sales_data.csv`) contains **16 columns** covering temporal, categorical, numerical, and target variables:
 
-| Field | Type | Options / Range | Description |
-|---|---|---|---|
-| **Store ID** | Categorical | `S001`, `S002`, `S003`, `S004`, `S005` | Store location identifier |
-| **Product ID** | Categorical | `P0001` – `P0020` | Stock keeping unit (SKU) |
-| **Category** | Categorical | `Groceries`, `Clothing`, `Electronics`, `Furniture`, `Toys` | Product classification (5 categories) |
-| **Region** | Categorical | `North`, `South`, `East`, `West` | Geographical store region |
-| **Weather Condition** | Categorical | `Sunny`, `Cloudy`, `Rainy`, `Snowy` | Local weather state |
-| **Seasonality** | Categorical | `Winter`, `Spring`, `Summer`, `Autumn` | Current seasonal period |
-| **Promotion** | Flag | `0` (No), `1` (Yes) | Active promotional campaign |
-| **Epidemic** | Flag | `0` (No), `1` (Yes) | Local outbreak/emergency flag |
-| **Price** | Float | Continuous | Selling price per unit |
-| **Discount** | Float | `0.0` – `25.0` | Discount percentage applied |
-| **Competitor Pricing** | Float | Continuous | External market pricing benchmark |
-| **Inventory Level** | Integer | Continuous | Current stock on hand at store |
+| # | Column | Type | Options / Range | Description |
+|---|---|---|---|---|
+| 1 | **Date** | Temporal | `2022-01-01` to `2024-01-31` | Transaction date (daily granularity) |
+| 2 | **Store ID** | Categorical | `S001`, `S002`, `S003`, `S004`, `S005` | Store location identifier |
+| 3 | **Product ID** | Categorical | `P0001` – `P0020` | Stock keeping unit (SKU) |
+| 4 | **Category** | Categorical | `Groceries`, `Clothing`, `Electronics`, `Furniture`, `Toys` | Product classification (5 categories) |
+| 5 | **Region** | Categorical | `North`, `South`, `East`, `West` | Geographical store region |
+| 6 | **Inventory Level** | Integer | Continuous | Current stock on hand at store |
+| 7 | **Units Sold** | Integer | Continuous | Actual units sold on that day |
+| 8 | **Units Ordered** | Integer | Continuous | Replenishment quantity ordered |
+| 9 | **Price** | Float | Continuous | Selling price per unit |
+| 10 | **Discount** | Float | `0` – `25` | Discount percentage applied |
+| 11 | **Weather Condition** | Categorical | `Sunny`, `Cloudy`, `Rainy`, `Snowy` | Local weather state |
+| 12 | **Promotion** | Flag | `0` (No), `1` (Yes) | Active promotional campaign |
+| 13 | **Competitor Pricing** | Float | Continuous | External market pricing benchmark |
+| 14 | **Seasonality** | Categorical | `Winter`, `Spring`, `Summer`, `Autumn` | Current seasonal period |
+| 15 | **Epidemic** | Flag | `0` (No), `1` (Yes) | Local outbreak / emergency flag |
+| 16 | **Demand** | Integer | Continuous | **Target variable** — actual customer demand |
+
+### Derived Business Indicators (from Notebooks 01 & 02)
+
+| Indicator | Formula | Signal |
+|---|---|---|
+| **Inventory Shortage** | `Demand > Inventory Level` | Stock insufficient to meet demand |
+| **Potential Lost Sales** | `Demand > Units Sold` | Demand existed but could not be fulfilled |
+| **Demand-Sales Difference** | `Demand − Units Sold` | Quantifies unmet demand |
+| **Demand-Inventory Difference** | `Demand − Inventory Level` | Quantifies the inventory gap |
+
+### Engineered Features (from Notebook 03)
+
+Extracted from the `Date` column: `Year`, `Month`, `Day`, `DayOfWeek`, `WeekOfYear`, `Quarter`, `IsWeekend`.
 
 ---
+
 
 ## ⚖️ Inventory Optimization Rules
 
