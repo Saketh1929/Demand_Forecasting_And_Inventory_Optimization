@@ -1,0 +1,15 @@
+[
+  {
+    "approval_id": "APP-5B0AC2A3",
+    "logged_at": "2026-09-13T11:11:23.385157",
+    "forecast_id": "FC-TEST1234",
+    "store_id": "S001",
+    "product_id": "P0001",
+    "predicted_demand": 150.0,
+    "inventory_level": 50,
+    "suggested_reorder_quantity": 120,
+    "action": "approved",
+    "modified_quantity": null,
+    "manager_notes": "Automated test approval note."
+  }
+]
