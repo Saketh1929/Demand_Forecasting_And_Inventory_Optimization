@@ -578,7 +578,7 @@ def preprocess_input(
 ) -> PreprocessResult | dict[str, Any]:
     """Transform an inference observation at date t to predict Demand(t).
 
-    Produces a NumPy feature vector of shape (1, 34) in exact FEATURE_ORDER.
+    Produces a NumPy feature vector of shape (1, 38) in exact FEATURE_ORDER.
     Strictly validates all categorical values and requires at least 14 days of prior Demand.
     """
     encoders = _load_encoders(encoders_path)
