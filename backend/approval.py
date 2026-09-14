@@ -22,6 +22,24 @@ def log_approval(approval_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     _ensure_log_file()
 
+    action = str(approval_data.get("action", "approved")).lower().strip()
+    valid_actions = {"approved", "modified", "rejected"}
+    if action not in valid_actions:
+        raise ValueError(f"Action must be one of: 'approved', 'modified', or 'rejected', got '{action}'")
+
+    raw_modified_qty = approval_data.get("modified_quantity")
+    if action == "modified":
+        if raw_modified_qty is None:
+            raise ValueError("modified_quantity must be provided when action is 'modified'")
+        try:
+            modified_quantity = int(raw_modified_qty)
+            if modified_quantity < 0:
+                raise ValueError("modified_quantity cannot be negative")
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Invalid modified_quantity: {e}")
+    else:
+        modified_quantity = int(raw_modified_qty) if raw_modified_qty is not None else None
+
     approval_id = f"APP-{uuid.uuid4().hex[:8].upper()}"
     logged_at = datetime.now().isoformat()
 
@@ -34,8 +52,8 @@ def log_approval(approval_data: Dict[str, Any]) -> Dict[str, Any]:
         "predicted_demand": float(approval_data.get("predicted_demand", 0.0)),
         "inventory_level": int(approval_data.get("inventory_level", 0)),
         "suggested_reorder_quantity": int(approval_data.get("suggested_reorder_quantity", 0)),
-        "action": str(approval_data.get("action", "approved")).lower(),
-        "modified_quantity": approval_data.get("modified_quantity"),
+        "action": action,
+        "modified_quantity": modified_quantity,
         "manager_notes": str(approval_data.get("manager_notes", "") or ""),
     }
 
