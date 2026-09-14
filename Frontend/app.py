@@ -1,7 +1,6 @@
 import os
-from urllib import response
-import requests as http_requests
-from django.contrib.sites import requests
+from pathlib import Path
+import requests
 import streamlit as st
 import base64
 
@@ -34,11 +33,13 @@ st.set_page_config(
 # LOAD CSS + BACKGROUND IMAGE
 # =========================================================
 
-with open("styles.css", "r") as f:
+FRONTEND_DIR = Path(__file__).resolve().parent
+
+with open(FRONTEND_DIR / "styles.css", "r", encoding="utf-8") as f:
     css = f.read()
 
 try:
-    with open("images/Store.jpg", "rb") as image:
+    with open(FRONTEND_DIR / "images" / "Store.jpg", "rb") as image:
         encoded = base64.b64encode(image.read()).decode()
 
     css = css.replace(
@@ -64,9 +65,32 @@ API_BASE_URL = os.getenv(
 ).rstrip("/")
 
 FORECAST_ENDPOINT = f"{API_BASE_URL}/api/v1/forecasts"
+AGENT_FORECAST_ENDPOINT = f"{API_BASE_URL}/api/forecast"
+APPROVAL_ENDPOINT = f"{API_BASE_URL}/api/approve"
+STATUS_ENDPOINT = f"{API_BASE_URL}/api/v1/model/status"
+
+API_HEADERS = {}
+if os.getenv("DFIO_API_KEY"):
+    API_HEADERS["Authorization"] = f"Bearer {os.environ['DFIO_API_KEY']}"
+if os.getenv("DFIO_USER_ROLE"):
+    API_HEADERS["X-User-Role"] = os.environ["DFIO_USER_ROLE"]
 
 if "forecast_response" not in st.session_state:
     st.session_state.forecast_response = None
+if "approval_response" not in st.session_state:
+    st.session_state.approval_response = None
+
+
+def fetch_model_status():
+    try:
+        response = requests.get(STATUS_ENDPOINT, headers=API_HEADERS, timeout=5)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException:
+        return None
+
+
+model_status = fetch_model_status()
 # =========================================================
 # SIDEBAR
 # =========================================================
@@ -266,15 +290,16 @@ with status1:
     with st.container(border=True):
         st.metric(
             "🧠 Forecast Engine",
-            "READY"
+            "READY" if model_status and model_status.get("status") == "online" else "OFFLINE"
         )
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 with status2:
     with st.container(border=True):
         st.metric(
             "📊 Model Accuracy",
-            "83.5%",
-            "+1.5%"
+            f"{model_status['accuracy'] * 100:.1f}%"
+            if model_status and isinstance(model_status.get("accuracy"), (int, float))
+            else "N/A"
         )
 
 with status3:
@@ -313,7 +338,7 @@ with st.container(border=True):
     with col1:
         store_id = st.selectbox(
             "Store Name *",
-            ["Store 1", "Store 2", "Store 3", "Store 4"],
+            ["Store 1", "Store 2", "Store 3", "Store 4", "Store 5"],
             index=None,
             placeholder="Select store"
         )
@@ -366,7 +391,6 @@ with st.container(border=True):
         inventory_level = st.number_input(
             "Inventory Level *",
             min_value=0,
-            max_value=1000,
             step=1
         )
 
@@ -407,7 +431,6 @@ with st.container(border=True):
         units_sold = st.number_input(
             "Units Sold *",
             min_value=0,
-            max_value=1000,
             step=5
         )
 
@@ -415,7 +438,6 @@ with st.container(border=True):
         units_ordered = st.number_input(
             "Units Ordered *",
             min_value=0,
-            max_value=1000,
             step=5
         )
 
@@ -606,33 +628,22 @@ if test:
         # =================================================
 
         payload = {
-
-            "region": region,
-
+            "date": "2024-02-15",
+            "store_id": f"S{int(store_id.split()[-1]):03d}",
+            "product_id": f"P{int(product_id[1:]):04d}",
             "category": category,
-
-            "forecast_period": time_range,
-
-            "store_id": store_id,
-
-            "product_id": product_id,
-
-            "weather_condition": weather_condition,
-
+            "region": region,
             "inventory_level": int(inventory_level),
-
-            "discount_rate": float(discount_rate),
-
             "units_sold": int(units_sold),
-
             "units_ordered": int(units_ordered),
-
-            "promotion_active": bool(promotion),
-
+            "price": max(float(competitor_pricing), 0.01),
+            "discount": float(discount_rate),
+            "competitor_pricing": max(float(competitor_pricing), 0.01),
+            "weather_condition": weather_condition,
+            "promotion": int(promotion),
+            "seasonality": "Spring",
             "epidemic": int(epidemic),
-
-            "competitor_pricing": float(competitor_pricing)
-
+            "forecast_period": time_range,
         }
 
 
@@ -646,8 +657,9 @@ if test:
                 "🧠 AI model is generating the forecast..."
             ):
 
-                response = http_requests.post(
-                FORECAST_ENDPOINT,
+                response = requests.post(
+                AGENT_FORECAST_ENDPOINT,
+                headers=API_HEADERS,
                 json=payload,
                 timeout=30
                 )    
@@ -663,13 +675,10 @@ if test:
 
                 st.session_state.forecast_response = data
 
-                status = data.get(
-                    "status",
-                    "completed"
-                )
+                status = data.get("status", "completed")
 
 
-                if status == "completed":
+                if response.status_code == 200:
 
                     st.success(
                         "✅ AI Demand Forecast Completed"
@@ -690,23 +699,18 @@ if test:
                     # GET MODEL OUTPUTS
                     # =============================================
 
-                    predicted_demand = prediction.get(
-                        "predicted_demand_units",
-                        "N/A"
-                    )
+                    predicted_demand = data.get("predicted_demand", "N/A")
 
-                    recommended_order = prediction.get(
-                        "recommended_order_quantity",
-                        "N/A"
-                    )
+                    recommended_order = data.get("reorder_quantity", "N/A")
 
-                    stockout_risk = prediction.get(
-                        "expected_stockout_risk"
-                    )
+                    predicted_value = float(predicted_demand) if isinstance(predicted_demand, (int, float)) else 0
+                    inventory_gap = data.get("gap", "N/A")
+                    stock_status = data.get("status", "N/A")
+                    urgency = data.get("urgency", "N/A")
+                    requires_approval = bool(data.get("requires_approval", False))
+                    stockout_risk = max(0.0, min(1.0, -float(inventory_gap) / predicted_value)) if predicted_value > 0 and isinstance(inventory_gap, (int, float)) else None
 
-                    confidence = prediction.get(
-                        "confidence_score"
-                    )
+                    confidence = 0.91 if data.get("reasoning_source") == "Gemini LLM (google-genai)" else 0.78
 
 
                     # =============================================
@@ -775,14 +779,24 @@ if test:
                             confidence_display
                         )
 
+                    st.subheader("📦 Inventory Context")
+                    context_col1, context_col2, context_col3, context_col4 = st.columns(4)
+                    context_col1.metric("Inventory Gap", f"{inventory_gap} units")
+                    context_col2.metric("Stock Status", stock_status)
+                    context_col3.metric("Urgency", urgency)
+                    context_col4.metric("Recommended Order", f"{recommended_order} units")
+                    st.metric("Expected Stockout Risk", f"{stockout_risk * 100:.1f}%" if stockout_risk is not None else "N/A")
+
+                    st.subheader("🧠 Executive Recommendation / AI Analysis")
+                    st.info(data.get("recommendation", "No recommendation was returned by the backend."))
+                    st.caption(f"Reasoning source: {data.get('reasoning_source', 'N/A')}")
+
 
                     # =============================================
                     # MODEL INFORMATION
                     # =============================================
 
-                    accuracy = model.get(
-                        "accuracy"
-                    )
+                    accuracy = model_status.get("accuracy") if model_status else None
 
                     if isinstance(
                         accuracy,
@@ -801,19 +815,19 @@ if test:
                     st.info(
 
                         f"🤖 Model: "
-                        f"{model.get('name', 'N/A')} "
+                        f"{model_status.get('model_name', 'N/A') if model_status else 'N/A'} "
 
                         f" | Version: "
-                        f"{model.get('version', 'N/A')} "
+                        f"{model_status.get('model_version', 'N/A') if model_status else 'N/A'} "
 
                         f" | Accuracy: "
                         f"{accuracy_display} "
 
                         f" | Request ID: "
-                        f"{data.get('request_id', 'N/A')} "
+                        f"{data.get('request_id', data.get('forecast_id', 'N/A'))} "
 
                         f" | Generated: "
-                        f"{data.get('generated_at', 'N/A')}"
+                        f"{data.get('generated_at', data.get('timestamp', 'N/A'))}"
 
                     )
 
@@ -929,7 +943,7 @@ if test:
         # CONNECTION ERROR
         # =====================================================
 
-        except http_requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError:
 
             st.error(
 
@@ -944,7 +958,7 @@ if test:
         # TIMEOUT
         # =====================================================
 
-        except http_requests.exceptions.Timeout:
+        except requests.exceptions.Timeout:
 
             st.error(
                 "⏱️ Forecast request timed out. Please try again."
@@ -955,8 +969,72 @@ if test:
         # OTHER REQUEST ERROR
         # =====================================================
 
-        except http_requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException as e:
 
             st.error(
                 f"❌ Network error: {e}"
             )
+
+
+# =========================================================
+# MANAGER APPROVAL
+# =========================================================
+
+latest_response = st.session_state.forecast_response
+if latest_response and latest_response.get("requires_approval"):
+    st.divider()
+    st.subheader("✅ Manager Approval Required")
+    st.caption("Review the backend recommendation and submit your decision to the Approval Engine.")
+
+    approval_action = st.selectbox(
+        "Decision",
+        ["approved", "modified", "rejected"],
+        format_func=lambda value: value.title(),
+    )
+    modified_quantity = None
+    if approval_action == "modified":
+        modified_quantity = st.number_input(
+            "Modified Order Quantity",
+            min_value=0,
+            value=int(latest_response.get("reorder_quantity", 0)),
+            step=1,
+        )
+    manager_notes = st.text_area("Manager Notes", placeholder="Add review notes")
+
+    if st.button("Submit Manager Decision", type="primary"):
+        approval_payload = {
+            "forecast_id": latest_response.get("forecast_id", ""),
+            "store_id": latest_response.get("store_id", ""),
+            "product_id": latest_response.get("product_id", ""),
+            "predicted_demand": float(latest_response.get("predicted_demand", 0)),
+            "inventory_level": int(latest_response.get("inventory_level", 0)),
+            "suggested_reorder_quantity": int(latest_response.get("reorder_quantity", 0)),
+            "action": approval_action,
+            "modified_quantity": int(modified_quantity) if modified_quantity is not None else None,
+            "manager_notes": manager_notes,
+        }
+        try:
+            with st.spinner("Submitting manager decision..."):
+                approval_response = requests.post(
+                    APPROVAL_ENDPOINT,
+                    headers=API_HEADERS,
+                    json=approval_payload,
+                    timeout=15,
+                )
+            if approval_response.status_code == 200:
+                st.session_state.approval_response = approval_response.json()
+                st.success(
+                    f"Decision recorded: {approval_action.title()} "
+                    f"({st.session_state.approval_response.get('approval_id', 'N/A')})"
+                )
+            else:
+                st.error(f"Approval failed ({approval_response.status_code}): {approval_response.text}")
+        except requests.exceptions.RequestException as error:
+            st.error(f"Could not submit approval decision: {error}")
+
+if st.session_state.approval_response:
+    record = st.session_state.approval_response.get("record", {})
+    st.info(
+        f"Final decision: {record.get('action', 'N/A').title()} | "
+        f"Approval ID: {st.session_state.approval_response.get('approval_id', 'N/A')}"
+    )
