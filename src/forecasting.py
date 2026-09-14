@@ -12,7 +12,7 @@ Architecture & Contract:
        ↓
    preprocess_input(current_row, history_df=working_history)
        ↓
-   NumPy feature vector of shape (1, 34) matching FEATURE_ORDER
+   NumPy feature vector of shape (1, 38) matching FEATURE_ORDER
        ↓
    M3 1-day-ahead XGBoost model -> predicts Demand(t)
        ↓
@@ -56,6 +56,20 @@ from src.data_preprocessing import (
 )
 
 
+
+def forecast_tool(features: np.ndarray, model_path: Path | str | None = None) -> float:
+    """Predict one day of demand from a processed-data feature vector."""
+    path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
+    if not path.exists():
+        raise FileNotFoundError(f"Model file not found at {path}")
+    with path.open("rb") as file:
+        model = pickle.load(file)
+    expected = len(FEATURE_ORDER)
+    if features.ndim != 2 or features.shape != (1, expected):
+        raise ValueError(f"forecast_tool() expects shape (1, {expected}), got {features.shape}")
+    return max(0.0, round(float(model.predict(features)[0]), 1))
+
+
 class ModelPredictor(Protocol):
     """Protocol for any demand forecasting model implementing .predict()."""
 
@@ -96,7 +110,7 @@ class ForecastResult:
 
 
 class ForecastEngine:
-    """Recursive forecasting engine executing 1-day-ahead rollouts with 34 features."""
+    """Recursive forecasting engine executing 1-day-ahead rollouts with 38 features."""
 
     def __init__(
         self,
@@ -110,8 +124,10 @@ class ForecastEngine:
         self.feature_columns_path = Path(feature_columns_path)
         self.data_path = Path(data_path)
         self.model: ModelPredictor | None = model
-        if self.model is None and model_path is not None:
-            self.model = self._load_model(Path(model_path))
+        if self.model is None:
+            path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
+            if path.exists():
+                self.model = self._load_model(path)
 
     @staticmethod
     def _load_model(path: Path) -> Any:
@@ -184,9 +200,18 @@ class ForecastEngine:
             if not pd.api.types.is_datetime64_any_dtype(working_history[date_col]):
                 working_history[date_col] = pd.to_datetime(working_history[date_col], errors="coerce")
         else:
-            working_history = pd.DataFrame(
-                columns=["Date", "Store ID", "Product ID", "Demand"]
-            )
+            # If no history provided, attempt to load from raw sales data
+            if self.data_path.exists():
+                raw_df = pd.read_csv(self.data_path, parse_dates=["Date"])
+                working_history = raw_df[
+                    (raw_df["Store ID"].astype(str) == store_id) & 
+                    (raw_df["Product ID"].astype(str) == product_id) &
+                    (raw_df["Date"] < target_date)
+                ].copy()
+            else:
+                working_history = pd.DataFrame(
+                    columns=["Date", "Store ID", "Product ID", "Demand"]
+                )
 
         # Process future schedule if provided
         schedule_by_date: dict[str, dict[str, Any]] = {}
@@ -222,7 +247,7 @@ class ForecastEngine:
                     if c_col in schedule_by_date[target_date_str]:
                         current_step_row[c_col] = schedule_by_date[target_date_str][c_col]
 
-            # 1. Feature Preprocessing via Canonical Contract (shape 1, 34)
+            # 1. Build the feature vector matching the 38-feature contract.
             prep_result = preprocess_input(
                 row=current_step_row,
                 history_df=working_history,
@@ -234,9 +259,9 @@ class ForecastEngine:
             if not isinstance(prep_result, PreprocessResult):
                 raise TypeError(f"Expected PreprocessResult from preprocess_input, got {type(prep_result)}")
             last_preprocess_result = prep_result
-
-            # 2. Predict Demand(t) using the 1-day-ahead model
             feature_vector = prep_result.feature_vector
+
+            # 2. Predict Demand(t) using the one-day model
             raw_prediction = active_model.predict(feature_vector)
 
             if isinstance(raw_prediction, (np.ndarray, list)):
@@ -279,7 +304,11 @@ class ForecastEngine:
         forecast_df = pd.DataFrame(daily_forecasts)
         total_demand = float(sum(predictions))
         mean_demand = float(np.mean(predictions)) if predictions else 0.0
-        feature_columns = last_preprocess_result.feature_columns if last_preprocess_result is not None else []
+        feature_columns = (
+            list(active_model.feature_order_)
+            if hasattr(active_model, "feature_order_")
+            else last_preprocess_result.feature_columns if last_preprocess_result is not None else []
+        )
 
         return ForecastResult(
             forecast_df=forecast_df,

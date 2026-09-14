@@ -1,7 +1,7 @@
-"""Comprehensive test suite for M3 34-feature demand preprocessing contract.
+"""Comprehensive test suite for M3 38-feature demand preprocessing contract.
 
 Covers all 19 required verification criteria:
-1. Exact feature count = 34.
+1. Exact feature count = 38.
 2. Exact feature order.
 3. Target definition is Demand without shift(-1).
 4. Lag correctness: lag_1 = Demand(t-1), lag_7 = Demand(t-7), lag_14 = Demand(t-14).
@@ -10,7 +10,7 @@ Covers all 19 required verification criteria:
 7. Calendar features derived from observation date in snake_case.
 8. Store/Product encoding consistency (numeric label encoding).
 9. One-hot encoding consistency.
-10. preprocess_input() returns shape (1, 34).
+10. preprocess_input() returns shape (1, 38).
 11. preprocess_input() dual interface.
 12. preprocess_input() lag alignment.
 13. Missing business features rejection.
@@ -92,21 +92,26 @@ def mock_dataset():
     return pd.DataFrame(records)
 
 
-def test_1_exact_feature_count_is_34():
-    """Verify FEATURE_ORDER contains exactly 34 features."""
-    assert len(FEATURE_ORDER) == 34
+def test_1_exact_feature_count_is_38():
+    """Verify FEATURE_ORDER contains exactly 38 features (expanded to cover all real data values)."""
+    assert len(FEATURE_ORDER) == 38, (
+        f"Expected 38 features, got {len(FEATURE_ORDER)}: {FEATURE_ORDER}"
+    )
 
 
 def test_2_exact_feature_order():
-    """Verify the 34 features match M3's exact required order."""
+    """Verify the 38 features match the M3 expanded contract covering all real data values."""
     expected = [
+        # Identifiers
         "Store ID",
         "Product ID",
+        # Business
         "Price",
         "Discount",
         "Promotion",
         "Competitor Pricing",
         "Epidemic",
+        # Calendar
         "day_of_week",
         "month",
         "day_of_month",
@@ -114,23 +119,33 @@ def test_2_exact_feature_order():
         "quarter",
         "year",
         "is_weekend",
+        # Lags
         "lag_1",
         "lag_7",
         "lag_14",
+        # Rolling
         "rolling_mean_7",
         "rolling_std_7",
         "rolling_mean_14",
         "rolling_std_14",
+        # Category (5 — includes Clothing)
+        "Category_Clothing",
         "Category_Electronics",
         "Category_Furniture",
         "Category_Groceries",
         "Category_Toys",
+        # Region (4 — includes East)
+        "Region_East",
         "Region_North",
         "Region_South",
         "Region_West",
+        # Weather Condition (4 — includes Cloudy)
+        "Weather Condition_Cloudy",
         "Weather Condition_Rainy",
         "Weather Condition_Snowy",
         "Weather Condition_Sunny",
+        # Seasonality (4 — includes Autumn)
+        "Seasonality_Autumn",
         "Seasonality_Spring",
         "Seasonality_Summer",
         "Seasonality_Winter",
@@ -242,8 +257,8 @@ def test_9_one_hot_encoding_deterministic(mock_dataset, tmp_path):
         assert set(encoded_df[col].unique()).issubset({0, 1})
 
 
-def test_10_preprocess_input_returns_shape_1_34(mock_dataset, tmp_path):
-    """Verify preprocess_input returns a NumPy array with exact shape (1, 34)."""
+def test_10_preprocess_input_returns_shape_1_38(mock_dataset, tmp_path):
+    """Verify preprocess_input returns a NumPy array with exact shape (1, 38)."""
     enc_path = tmp_path / "encoders.pkl"
     col_path = tmp_path / "feature_columns.pkl"
     encoders = fit_encoders(mock_dataset, enc_path)
@@ -273,7 +288,7 @@ def test_10_preprocess_input_returns_shape_1_34(mock_dataset, tmp_path):
     )
 
     assert isinstance(vec, np.ndarray)
-    assert vec.shape == (1, 34)
+    assert vec.shape == (1, 38)
     assert np.isfinite(vec).all()
     assert vec.feature_columns == FEATURE_ORDER
 
@@ -309,10 +324,10 @@ def test_11_preprocess_input_dual_interface(mock_dataset, tmp_path):
     )
 
     assert isinstance(res, np.ndarray)
-    assert res.shape == (1, 34)
+    assert res.shape == (1, 38)
     assert res["feature_columns"] == FEATURE_ORDER
     assert res["metadata"]["store_id"] == "S001"
-    assert res["metadata"]["num_features"] == 34
+    assert res["metadata"]["num_features"] == 38
 
 
 def test_12_preprocess_input_lag_alignment(mock_dataset, tmp_path):
@@ -424,7 +439,7 @@ def test_15_inference_feature_order_strictly_equals_training_order(mock_dataset,
     res = preprocess_input(row, history_df=history, encoders_path=enc_path, feature_columns_path=col_path)
 
     assert list(res.feature_columns) == FEATURE_ORDER
-    assert len(res.feature_columns) == 34
+    assert len(res.feature_columns) == 38
 
 
 def test_16_unknown_category_rejection(mock_dataset, tmp_path):
@@ -438,7 +453,7 @@ def test_16_unknown_category_rejection(mock_dataset, tmp_path):
     row = {
         "store_id": "S001",
         "product_id": "P0001",
-        "category": "Clothing",  # Unknown Category
+        "category": "Space",  # Unknown Category
         "region": "North",
         "weather_condition": "Sunny",
         "price": 99.99,
@@ -450,7 +465,7 @@ def test_16_unknown_category_rejection(mock_dataset, tmp_path):
     }
     history = mock_dataset[(mock_dataset["Store ID"] == "S001") & (mock_dataset["Product ID"] == "P0001")]
 
-    with pytest.raises(ValueError, match="Unknown Category: 'Clothing'"):
+    with pytest.raises(ValueError, match="Unknown Category: 'Space'"):
         preprocess_input(row, history_df=history, encoders_path=enc_path, feature_columns_path=col_path)
 
 
@@ -469,7 +484,7 @@ def test_17_unknown_region_and_weather_rejection(mock_dataset, tmp_path):
         "store_id": "S001",
         "product_id": "P0001",
         "category": "Electronics",
-        "region": "East",
+        "region": "Mars",
         "weather_condition": "Sunny",
         "price": 99.99,
         "discount_rate": 0.0,
@@ -478,7 +493,7 @@ def test_17_unknown_region_and_weather_rejection(mock_dataset, tmp_path):
         "epidemic": 0,
         "date": "2023-01-30",
     }
-    with pytest.raises(ValueError, match="Unknown Region: 'East'"):
+    with pytest.raises(ValueError, match="Unknown Region: 'Mars'"):
         preprocess_input(row_region, history_df=history, encoders_path=enc_path, feature_columns_path=col_path)
 
     # Unknown Weather Condition
@@ -598,6 +613,6 @@ def test_19_exact_14_days_history_succeeds(mock_dataset, tmp_path):
         feature_columns_path=col_path,
     )
 
-    assert res.shape == (1, 34)
+    assert res.shape == (1, 38)
     assert np.isfinite(res).all()
     assert res["metadata"]["history_status"].startswith("complete (14 records")

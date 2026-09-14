@@ -1,4 +1,4 @@
-"""Test suite for recursive forecast_engine.py under M3 34-feature contract.
+"""Test suite for recursive forecast_engine.py under M3 38-feature contract.
 
 Verifies the 9 required M3 recursive forecasting integration criteria:
 1. One-day prediction.
@@ -6,7 +6,7 @@ Verifies the 9 required M3 recursive forecasting integration criteria:
 3. Correct history update with predicted Demand.
 4. Correct lag calculation from Demand.
 5. Correct rolling calculation from Demand.
-6. Feature count consistency (exactly 34).
+6. Feature count consistency (exactly 38).
 7. Feature ordering consistency (matches FEATURE_ORDER).
 8. No use of future actual demand.
 9. Requested forecast horizon is respected.
@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from forecast_engine import ForecastEngine, ForecastResult, forecast_demand
+from src.forecasting import ForecastEngine, ForecastResult, forecast_demand
 from src.data_preprocessing import (
     BUSINESS_FEATURES,
     CALENDAR_FEATURES,
@@ -258,7 +258,7 @@ def test_5_correct_rolling_calculation_in_rollout(test_env):
 
 
 def test_6_feature_count_consistency(test_env):
-    """Test 6: Feature matrix has exactly 34 features at every recursive step."""
+    """Test 6: Feature matrix has exactly 38 features at every recursive step."""
     horizon = 14
     model = MockConstantModel(constant_value=40.0)
     engine = ForecastEngine(
@@ -276,7 +276,7 @@ def test_6_feature_count_consistency(test_env):
 
     assert len(model.recorded_features) == horizon
     for step_idx, feat in enumerate(model.recorded_features):
-        assert feat.shape == (1, 34), f"Step {step_idx+1} had shape {feat.shape}"
+        assert feat.shape == (1, 38), f"Step {step_idx+1} had shape {feat.shape}"
         assert np.isfinite(feat).all(), f"Step {step_idx+1} contained NaN or Inf"
 
 
@@ -346,3 +346,34 @@ def test_9_requested_forecast_horizon_is_respected(test_env):
         assert len(res.predictions) == h
         assert len(res.forecast_df) == h
         assert res.forecast_df["step"].iloc[-1] == h
+
+def test_10_multiday_forecast_without_history_df(test_env):
+    """Test 10: forecast() loads history from data_path if history_df is None."""
+    model = MockConstantModel(constant_value=42.0)
+    engine = ForecastEngine(
+        model=model,
+        encoders_path=test_env["encoders_path"],
+        feature_columns_path=test_env["feature_columns_path"],
+        data_path=test_env["data_path"],
+    )
+    res = engine.forecast(
+        current_row=test_env["obs_row"],
+        horizon=7,
+        history_df=None,
+    )
+    assert res.horizon == 7
+    assert len(res.predictions) == 7
+
+from src.forecasting import forecast_tool
+import numpy as np
+def test_11_forecast_tool_38_features(tmp_path):
+    """Test 11: forecast_tool strictly requires 38 features and works correctly."""
+    import pickle
+    model_path = tmp_path / "dummy_model.pkl"
+    with open(model_path, "wb") as f:
+        pickle.dump(MockConstantModel(15.0), f)
+    
+    # 38 features exactly
+    features = np.zeros((1, 38))
+    pred = forecast_tool(features, model_path=model_path)
+    assert pred == 15.0
