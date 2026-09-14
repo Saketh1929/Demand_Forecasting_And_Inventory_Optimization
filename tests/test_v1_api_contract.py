@@ -4,7 +4,12 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 import backend.main as main_mod
+from backend import data_preprocessing as backend_preprocessing
+from backend import forecasting as backend_forecasting
 from backend.main import app
+from src.data_preprocessing import preprocess_input as src_preprocess_input
+from src.forecasting import ForecastEngine as SrcForecastEngine
+from src.forecasting import resolve_forecast_horizon
 
 client = TestClient(app)
 
@@ -25,24 +30,16 @@ VALID_PAYLOAD = {
 }
 
 
-def test_v1_forecast_returns_spec_shape():
+def test_v1_forecast_fails_visibly_when_model_is_missing():
     response = client.post("/api/v1/forecasts", json=VALID_PAYLOAD)
 
-    assert response.status_code == 200, response.text
+    assert response.status_code == 500, response.text
     payload = response.json()
 
-    assert payload["status"] == "completed"
+    assert payload["status"] == "failed"
+    assert payload["error"]["code"] == "FORECAST_ERROR"
+    assert "Trained model not found" in payload["error"]["message"]
     assert "request_id" in payload
-    assert "prediction" in payload
-    assert payload["prediction"]["forecast_period"] == "1 month"
-    assert "predicted_demand_units" in payload["prediction"]
-    assert "recommended_order_quantity" in payload["prediction"]
-    assert "expected_stockout_risk" in payload["prediction"]
-    assert "confidence_score" in payload["prediction"]
-    assert "model" in payload
-    assert payload["model"]["name"] == "dfio-demand-forecast"
-    assert "input_echo" in payload
-    assert payload["input_echo"]["region"] == "North"
 
 
 def test_v1_forecast_rejects_invalid_promotion_type():
@@ -79,7 +76,7 @@ def test_v1_forecast_requires_api_key_when_auth_enabled(monkeypatch):
     assert response.status_code == 401, response.text
 
 
-def test_v1_forecast_writes_audit_record(monkeypatch):
+def test_v1_forecast_does_not_hide_missing_model_errors(monkeypatch):
     audit_path = Path("logs/forecast_audit.json")
     if audit_path.exists():
         audit_path.unlink()
@@ -88,14 +85,10 @@ def test_v1_forecast_writes_audit_record(monkeypatch):
     monkeypatch.setattr(main_mod, "API_KEY", "", raising=False)
 
     response = client.post("/api/v1/forecasts", json=VALID_PAYLOAD)
-    assert response.status_code == 200, response.text
-    assert audit_path.exists(), "audit log should be created"
-
-    data = json.loads(audit_path.read_text(encoding="utf-8"))
-    assert isinstance(data, list)
-    assert len(data) >= 1
-    assert data[-1]["request_id"].startswith("fcst_")
-    assert data[-1]["model_version"] == "1.0.0"
+    assert response.status_code == 500, response.text
+    assert response.json()["status"] == "failed"
+    assert "Trained model not found" in response.json()["error"]["message"]
+    assert not audit_path.exists() or len(json.loads(audit_path.read_text(encoding="utf-8"))) == 0
 
 
 def test_approval_requires_admin_role(monkeypatch):
@@ -123,3 +116,16 @@ def test_approval_requires_admin_role(monkeypatch):
 
     assert response.status_code == 403, response.text
     assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_backend_uses_authoritative_src_pipeline():
+    assert backend_preprocessing.preprocess_input is src_preprocess_input
+    assert backend_forecasting.ForecastEngine is SrcForecastEngine
+
+
+def test_forecast_period_mapping_uses_requested_horizon():
+    assert resolve_forecast_horizon("1 week") == 7
+    assert resolve_forecast_horizon("1 month") == 30
+    assert resolve_forecast_horizon("3 months") == 90
+    assert resolve_forecast_horizon("6 months") == 180
+    assert resolve_forecast_horizon("1 year") == 365

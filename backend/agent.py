@@ -56,11 +56,11 @@ def query_gemini_llm(prompt: str) -> str:
     
     return None
 
-def run_agent_pipeline(raw_input: dict) -> dict:
+def run_agent_pipeline(raw_input: dict, forecast_period: str = "1 month") -> dict:
     """
     Complete agent pipeline orchestrator:
     1. Preprocesses input features
-    2. Executes ML/Heuristic forecast
+    2. Executes the ML forecast for the requested period
     3. Evaluates inventory gap & status rules
     4. Generates executive LLM recommendation & tool execution trace
     """
@@ -74,17 +74,17 @@ def run_agent_pipeline(raw_input: dict) -> dict:
         "step": 1,
         "tool": "data_preprocessing",
         "status": "success",
-        "details": f"Extracted temporal & encoded categorical features. Encoder PKL: {prep_res['used_encoder_pkl']}"
+        "details": f"Extracted temporal & encoded categorical features. Feature count: {len(prep_res.get('feature_names', []))}"
     })
 
     # Step 2: Forecasting
-    forecast_res = forecast_tool(prep_res)
+    forecast_res = forecast_tool(prep_res, forecast_period=forecast_period)
     predicted_demand = forecast_res["predicted_demand"]
     tool_trace.append({
         "step": 2,
         "tool": "forecasting_model",
         "status": forecast_res["status"],
-        "details": f"Predicted Demand: {predicted_demand} units (Source: {forecast_res['model_source']})"
+        "details": f"Predicted Demand: {predicted_demand} units (Source: {forecast_res['model_source']}; Horizon: {forecast_res.get('horizon_days', 'n/a')} days)"
     })
 
     # Step 3: Inventory Evaluation

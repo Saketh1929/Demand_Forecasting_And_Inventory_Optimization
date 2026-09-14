@@ -321,6 +321,7 @@ def normalize_legacy_forecast_input(payload: ForecastRequestV1) -> dict:
         "promotion": 1 if payload.promotion_active else 0,
         "seasonality": "Spring",
         "epidemic": int(payload.epidemic),
+        "forecast_period": payload.forecast_period,
     }
     return legacy_payload
 
@@ -466,7 +467,7 @@ def create_forecast_v1(payload: ForecastRequestV1):
         validate_master_data(payload)
         validate_model_registry(MODEL_INFO["name"], MODEL_INFO["version"])
         legacy_input = normalize_legacy_forecast_input(payload)
-        result = run_agent_pipeline(legacy_input)
+        result = run_agent_pipeline(legacy_input, forecast_period=payload.forecast_period)
 
         predicted_demand = float(result.get("predicted_demand", 0.0))
         inventory_level = int(legacy_input.get("inventory_level", 0))
