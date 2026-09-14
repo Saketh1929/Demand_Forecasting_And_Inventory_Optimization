@@ -151,8 +151,8 @@ Rows without enough prior history are removed. The resulting training target rem
 The preprocessing stage writes:
 
 - `data/preprocessed_sales_data.csv`
-- `src/models/encoders.pkl`
-- `src/models/feature_columns.pkl`
+- `models/encoders.pkl`
+- `models/feature_columns.pkl`
 
 The feature-column artifact contains the authoritative 38-feature order.
 
@@ -167,7 +167,7 @@ The feature-column artifact contains the authoritative 38-feature order.
 5. Trains the evaluation model on the training partition.
 6. Calculates validation and test metrics.
 7. Retrains the deployment model on train plus validation data.
-8. Saves `src/models/best_model.pkl` without `feature_order_`.
+8. Saves `models/best_model.pkl` without `feature_order_`.
 9. Writes the residual standard deviation and evaluation report.
 
 ### Step 5: Recursive inference

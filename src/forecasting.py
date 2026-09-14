@@ -12,7 +12,7 @@ Architecture & Contract:
        ↓
    preprocess_input(current_row, history_df=working_history)
        ↓
-   NumPy feature vector of shape (1, 34) matching FEATURE_ORDER
+   NumPy feature vector of shape (1, 38) matching FEATURE_ORDER
        ↓
    M3 1-day-ahead XGBoost model -> predicts Demand(t)
        ↓
@@ -56,97 +56,15 @@ from src.data_preprocessing import (
 )
 
 
-LEGACY_PROCESSED_PATH = Path(__file__).resolve().parents[1] / "data" / "preprocessed_sales_data.csv"
-LEGACY_FEATURE_ORDER = [
-    "Price", "Discount", "Promotion", "Competitor Pricing", "Epidemic",
-    "Year", "Month", "Day", "DayOfWeek", "WeekOfYear", "Quarter", "IsWeekend",
-    "lag_1_day", "lag_7_day", "lag_30_day", "lag_90_day", "lag_180_day", "lag_365_day",
-    "rolling_mean_7", "rolling_std_7", "rolling_mean_14", "rolling_std_14",
-    "Store_ID_encoded", "Product_ID_encoded", "Category_Clothing", "Category_Electronics",
-    "Category_Furniture", "Category_Groceries", "Category_Toys", "Region_East",
-    "Region_North", "Region_South", "Region_West", "Weather Condition_Cloudy",
-    "Weather Condition_Rainy", "Weather Condition_Snowy", "Weather Condition_Sunny",
-    "Seasonality_Autumn", "Seasonality_Spring", "Seasonality_Summer", "Seasonality_Winter",
-]
-_LEGACY_DATA_CACHE: pd.DataFrame | None = None
-
-
-def _load_legacy_processed_data() -> pd.DataFrame:
-    global _LEGACY_DATA_CACHE
-    if _LEGACY_DATA_CACHE is None:
-        if not LEGACY_PROCESSED_PATH.exists():
-            raise FileNotFoundError(f"Processed data not found at {LEGACY_PROCESSED_PATH}")
-        _LEGACY_DATA_CACHE = pd.read_csv(LEGACY_PROCESSED_PATH, parse_dates=["Date"])
-        _LEGACY_DATA_CACHE = _LEGACY_DATA_CACHE[
-            _LEGACY_DATA_CACHE["forecast_horizon"] == 1
-        ].sort_values("Date")
-    return _LEGACY_DATA_CACHE
-
-
-def _legacy_features(
-    current_row: dict[str, Any],
-    history_df: pd.DataFrame,
-    target_date: pd.Timestamp,
-) -> np.ndarray:
-    """Build the 41-feature vector used by the processed-data M3 model."""
-    data = _load_legacy_processed_data()
-    store_id = str(current_row.get("Store ID", current_row.get("store_id", "")))
-    product_id = str(current_row.get("Product ID", current_row.get("product_id", "")))
-    candidates = data[(data["Store ID"].astype(str) == store_id) & (data["Product ID"].astype(str) == product_id)]
-    if candidates.empty:
-        raise ValueError(f"No processed history found for Store ID={store_id}, Product ID={product_id}")
-    base = candidates.iloc[-1].to_dict()
-    feature_values = {column: base[column] for column in LEGACY_FEATURE_ORDER}
-
-    date = pd.Timestamp(target_date)
-    feature_values.update({
-        "Year": date.year,
-        "Month": date.month,
-        "Day": date.day,
-        "DayOfWeek": date.dayofweek,
-        "WeekOfYear": int(date.isocalendar().week),
-        "Quarter": date.quarter,
-        "IsWeekend": int(date.dayofweek >= 5),
-    })
-
-    if history_df is not None and not history_df.empty:
-        date_col = "Date" if "Date" in history_df.columns else "date"
-        demand_col = "Demand" if "Demand" in history_df.columns else "Target_Demand"
-        store_col = "Store ID" if "Store ID" in history_df.columns else "store_id"
-        product_col = "Product ID" if "Product ID" in history_df.columns else "product_id"
-        history = history_df.copy()
-        history[date_col] = pd.to_datetime(history[date_col], errors="coerce")
-        history = history[
-            (history[store_col].astype(str) == store_id)
-            & (history[product_col].astype(str) == product_id)
-            & (history[date_col] < date)
-        ].sort_values(date_col)
-        demand = history[demand_col].dropna().astype(float).tolist()
-        lag_windows = {"lag_1_day": 1, "lag_7_day": 7, "lag_30_day": 30, "lag_90_day": 90, "lag_180_day": 180, "lag_365_day": 365}
-        for column, offset in lag_windows.items():
-            if len(demand) >= offset:
-                feature_values[column] = demand[-offset]
-        if len(demand) >= 7:
-            feature_values["rolling_mean_7"] = float(np.mean(demand[-7:]))
-            feature_values["rolling_std_7"] = float(np.std(demand[-7:], ddof=1))
-        if len(demand) >= 14:
-            feature_values["rolling_mean_14"] = float(np.mean(demand[-14:]))
-            feature_values["rolling_std_14"] = float(np.std(demand[-14:], ddof=1))
-
-    for column in ("Price", "Discount", "Promotion", "Competitor Pricing", "Epidemic"):
-        if column in current_row:
-            feature_values[column] = current_row[column]
-    return np.array([[float(feature_values[column]) for column in LEGACY_FEATURE_ORDER]], dtype=float)
-
 
 def forecast_tool(features: np.ndarray, model_path: Path | str | None = None) -> float:
     """Predict one day of demand from a processed-data feature vector."""
-    path = Path(model_path) if model_path is not None else Path(__file__).resolve().parent / "models" / "best_model.pkl"
+    path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
     if not path.exists():
         raise FileNotFoundError(f"Model file not found at {path}")
     with path.open("rb") as file:
         model = pickle.load(file)
-    expected = len(getattr(model, "feature_order_", LEGACY_FEATURE_ORDER))
+    expected = len(FEATURE_ORDER)
     if features.ndim != 2 or features.shape != (1, expected):
         raise ValueError(f"forecast_tool() expects shape (1, {expected}), got {features.shape}")
     return max(0.0, round(float(model.predict(features)[0]), 1))
@@ -192,7 +110,7 @@ class ForecastResult:
 
 
 class ForecastEngine:
-    """Recursive forecasting engine executing 1-day-ahead rollouts with 34 features."""
+    """Recursive forecasting engine executing 1-day-ahead rollouts with 38 features."""
 
     def __init__(
         self,
@@ -206,8 +124,10 @@ class ForecastEngine:
         self.feature_columns_path = Path(feature_columns_path)
         self.data_path = Path(data_path)
         self.model: ModelPredictor | None = model
-        if self.model is None and model_path is not None:
-            self.model = self._load_model(Path(model_path))
+        if self.model is None:
+            path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
+            if path.exists():
+                self.model = self._load_model(path)
 
     @staticmethod
     def _load_model(path: Path) -> Any:
@@ -280,9 +200,18 @@ class ForecastEngine:
             if not pd.api.types.is_datetime64_any_dtype(working_history[date_col]):
                 working_history[date_col] = pd.to_datetime(working_history[date_col], errors="coerce")
         else:
-            working_history = pd.DataFrame(
-                columns=["Date", "Store ID", "Product ID", "Demand"]
-            )
+            # If no history provided, attempt to load from raw sales data
+            if self.data_path.exists():
+                raw_df = pd.read_csv(self.data_path, parse_dates=["Date"])
+                working_history = raw_df[
+                    (raw_df["Store ID"].astype(str) == store_id) & 
+                    (raw_df["Product ID"].astype(str) == product_id) &
+                    (raw_df["Date"] < target_date)
+                ].copy()
+            else:
+                working_history = pd.DataFrame(
+                    columns=["Date", "Store ID", "Product ID", "Demand"]
+                )
 
         # Process future schedule if provided
         schedule_by_date: dict[str, dict[str, Any]] = {}
@@ -318,25 +247,19 @@ class ForecastEngine:
                     if c_col in schedule_by_date[target_date_str]:
                         current_step_row[c_col] = schedule_by_date[target_date_str][c_col]
 
-            # 1. Build the feature vector matching the selected model contract.
-            if hasattr(active_model, "feature_order_"):
-                feature_vector = _legacy_features(current_step_row, working_history, target_date)
-                feature_columns = list(active_model.feature_order_)
-                if feature_columns != LEGACY_FEATURE_ORDER:
-                    raise ValueError("Saved model feature order does not match the processed-data serving contract.")
-            else:
-                prep_result = preprocess_input(
-                    row=current_step_row,
-                    history_df=working_history,
-                    return_dict=False,
-                    encoders_path=self.encoders_path,
-                    feature_columns_path=self.feature_columns_path,
-                    data_path=self.data_path,
-                )
-                if not isinstance(prep_result, PreprocessResult):
-                    raise TypeError(f"Expected PreprocessResult from preprocess_input, got {type(prep_result)}")
-                last_preprocess_result = prep_result
-                feature_vector = prep_result.feature_vector
+            # 1. Build the feature vector matching the 38-feature contract.
+            prep_result = preprocess_input(
+                row=current_step_row,
+                history_df=working_history,
+                return_dict=False,
+                encoders_path=self.encoders_path,
+                feature_columns_path=self.feature_columns_path,
+                data_path=self.data_path,
+            )
+            if not isinstance(prep_result, PreprocessResult):
+                raise TypeError(f"Expected PreprocessResult from preprocess_input, got {type(prep_result)}")
+            last_preprocess_result = prep_result
+            feature_vector = prep_result.feature_vector
 
             # 2. Predict Demand(t) using the one-day model
             raw_prediction = active_model.predict(feature_vector)

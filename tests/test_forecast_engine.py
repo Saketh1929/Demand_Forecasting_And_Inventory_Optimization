@@ -346,3 +346,34 @@ def test_9_requested_forecast_horizon_is_respected(test_env):
         assert len(res.predictions) == h
         assert len(res.forecast_df) == h
         assert res.forecast_df["step"].iloc[-1] == h
+
+def test_10_multiday_forecast_without_history_df(test_env):
+    """Test 10: forecast() loads history from data_path if history_df is None."""
+    model = MockConstantModel(constant_value=42.0)
+    engine = ForecastEngine(
+        model=model,
+        encoders_path=test_env["encoders_path"],
+        feature_columns_path=test_env["feature_columns_path"],
+        data_path=test_env["data_path"],
+    )
+    res = engine.forecast(
+        current_row=test_env["obs_row"],
+        horizon=7,
+        history_df=None,
+    )
+    assert res.horizon == 7
+    assert len(res.predictions) == 7
+
+from src.forecasting import forecast_tool
+import numpy as np
+def test_11_forecast_tool_38_features(tmp_path):
+    """Test 11: forecast_tool strictly requires 38 features and works correctly."""
+    import pickle
+    model_path = tmp_path / "dummy_model.pkl"
+    with open(model_path, "wb") as f:
+        pickle.dump(MockConstantModel(15.0), f)
+    
+    # 38 features exactly
+    features = np.zeros((1, 38))
+    pred = forecast_tool(features, model_path=model_path)
+    assert pred == 15.0

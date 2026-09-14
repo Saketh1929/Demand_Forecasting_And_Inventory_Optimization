@@ -160,6 +160,7 @@ def test_ec02_no_model_raises_value_error(base_env):
         feature_columns_path=base_env["feature_columns_path"],
         data_path=base_env["data_path"],
     )
+    engine.model = None
     with pytest.raises(ValueError, match="No forecasting model"):
         engine.forecast(
             current_row=base_env["obs_row"],

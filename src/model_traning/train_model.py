@@ -3,10 +3,10 @@
 Pipeline contract:
     data_preprocessing.prepare_data()
         -> data/preprocessed_sales_data.csv  (Date + 38 FEATURE_ORDER cols + Demand)
-        -> src/models/encoders.pkl
-        -> src/models/feature_columns.pkl
+        -> models/encoders.pkl
+        -> models/feature_columns.pkl
     train_model.train()
-        -> src/models/best_model.pkl         (XGBoost, NO feature_order_ attribute)
+        -> models/best_model.pkl         (XGBoost, NO feature_order_ attribute)
         -> outputs/model_residual_std.txt
         -> outputs/reports/model_evaluation.md
 
@@ -47,7 +47,7 @@ from src.data_preprocessing import (
 
 PROJECT_ROOT = _PROJECT_ROOT
 PROCESSED_DATA_PATH = PROJECT_ROOT / "data" / "preprocessed_sales_data.csv"
-MODEL_PATH = PROJECT_ROOT / "src" / "models" / "best_model.pkl"
+MODEL_PATH = PROJECT_ROOT / "models" / "best_model.pkl"
 RESIDUAL_PATH = PROJECT_ROOT / "outputs" / "model_residual_std.txt"
 REPORT_PATH = PROJECT_ROOT / "outputs" / "reports" / "model_evaluation.md"
 
@@ -183,7 +183,7 @@ def write_report(
             "```",
             "",
             "## Deployment Artifact",
-            "`src/models/best_model.pkl` — retrained on Train + Validation after evaluation.",
+            "`models/best_model.pkl` — retrained on Train + Validation after evaluation.",
             "",
             "> **Note**: The deployment model does NOT have a `feature_order_` attribute.",
             "> `ForecastEngine` therefore uses the modern `preprocess_input()` path",

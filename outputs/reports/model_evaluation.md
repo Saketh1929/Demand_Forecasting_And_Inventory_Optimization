@@ -29,7 +29,7 @@ Store ID, Product ID, Price, Discount, Promotion, Competitor Pricing, Epidemic, 
 ```
 
 ## Deployment Artifact
-`src/models/best_model.pkl` — retrained on Train + Validation after evaluation.
+`models/best_model.pkl` — retrained on Train + Validation after evaluation.
 
 > **Note**: The deployment model does NOT have a `feature_order_` attribute.
 > `ForecastEngine` therefore uses the modern `preprocess_input()` path

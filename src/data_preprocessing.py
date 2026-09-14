@@ -5,7 +5,7 @@ The serving contract is:
         ↓
     preprocess_input(row, history_df=historical_demand)
         ↓
-    PreprocessResult / NumPy feature vector (1, 34)
+    PreprocessResult / NumPy feature vector (1, 38)
         ↓
     M3 1-day-ahead XGBoost model -> predicted Demand(t)
         ↓
@@ -39,7 +39,7 @@ Key Architectural Rules & Temporal Alignment:
    Category, Region, Weather Condition, Seasonality are one-hot encoded into
    deterministic binary dummy indicators. Unknown categorical values are strictly rejected.
 7. Exact Model Feature Contract:
-   Exactly 34 features in authoritative FEATURE_ORDER.
+   Exactly 38 features in authoritative FEATURE_ORDER.
 8. History Requirement:
    At least 14 historical Demand observations are strictly required at inference time.
    Insufficient history raises a clear ValueError (zero fallback imputation).
@@ -59,8 +59,8 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = PROJECT_ROOT / "data" / "sales_data.csv"
 PROCESSED_PATH = PROJECT_ROOT / "data" / "preprocessed_sales_data.csv"
-FEATURE_COLUMNS_PATH = PROJECT_ROOT / "src" / "models" / "feature_columns.pkl"
-ENCODERS_PATH = PROJECT_ROOT / "src" / "models" / "encoders.pkl"
+FEATURE_COLUMNS_PATH = PROJECT_ROOT / "models" / "feature_columns.pkl"
+ENCODERS_PATH = PROJECT_ROOT / "models" / "encoders.pkl"
 
 REQUIRED_COLUMNS: list[str] = [
     "Date", "Store ID", "Product ID", "Category", "Region",
@@ -400,9 +400,9 @@ def prepare_data(
     """Generate the single-step 1-day-ahead training dataset and model artifacts for M3.
 
     Outputs:
-        1. data/preprocessed_sales_data.csv: single dataset with Date + 34 features + Demand.
+        1. data/preprocessed_sales_data.csv: single dataset with Date + 38 features + Demand.
         2. models/encoders.pkl: label mappings for Store/Product and one-hot schema.
-        3. models/feature_columns.pkl: exact ordered list of 34 model features.
+        3. models/feature_columns.pkl: exact ordered list of 38 model features.
     """
     raw = pd.read_csv(data_path)
     print(f"Original dataset shape: {raw.shape}")
@@ -426,7 +426,7 @@ def prepare_data(
 
     prepared, encoders = encode_features(prepared, encoders=encoders, encoders_path=encoders_path)
 
-    # Verify all 34 features exist
+    # Verify all 38 features exist
     missing_features = [col for col in FEATURE_ORDER if col not in prepared.columns]
     if missing_features:
         raise ValueError(f"Missing engineered features: {missing_features}")
