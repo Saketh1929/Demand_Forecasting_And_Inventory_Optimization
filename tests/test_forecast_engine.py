@@ -1,4 +1,4 @@
-"""Test suite for recursive forecast_engine.py under M3 34-feature contract.
+"""Test suite for recursive forecast_engine.py under M3 38-feature contract.
 
 Verifies the 9 required M3 recursive forecasting integration criteria:
 1. One-day prediction.
@@ -6,7 +6,7 @@ Verifies the 9 required M3 recursive forecasting integration criteria:
 3. Correct history update with predicted Demand.
 4. Correct lag calculation from Demand.
 5. Correct rolling calculation from Demand.
-6. Feature count consistency (exactly 34).
+6. Feature count consistency (exactly 38).
 7. Feature ordering consistency (matches FEATURE_ORDER).
 8. No use of future actual demand.
 9. Requested forecast horizon is respected.
@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from forecast_engine import ForecastEngine, ForecastResult, forecast_demand
+from src.forecasting import ForecastEngine, ForecastResult, forecast_demand
 from src.data_preprocessing import (
     BUSINESS_FEATURES,
     CALENDAR_FEATURES,
@@ -258,7 +258,7 @@ def test_5_correct_rolling_calculation_in_rollout(test_env):
 
 
 def test_6_feature_count_consistency(test_env):
-    """Test 6: Feature matrix has exactly 34 features at every recursive step."""
+    """Test 6: Feature matrix has exactly 38 features at every recursive step."""
     horizon = 14
     model = MockConstantModel(constant_value=40.0)
     engine = ForecastEngine(
@@ -276,7 +276,7 @@ def test_6_feature_count_consistency(test_env):
 
     assert len(model.recorded_features) == horizon
     for step_idx, feat in enumerate(model.recorded_features):
-        assert feat.shape == (1, 34), f"Step {step_idx+1} had shape {feat.shape}"
+        assert feat.shape == (1, 38), f"Step {step_idx+1} had shape {feat.shape}"
         assert np.isfinite(feat).all(), f"Step {step_idx+1} contained NaN or Inf"
 
 
