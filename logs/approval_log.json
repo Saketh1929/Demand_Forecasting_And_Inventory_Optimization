@@ -11,5 +11,18 @@
     "action": "approved",
     "modified_quantity": null,
     "manager_notes": "Automated test approval note."
+  },
+  {
+    "approval_id": "APP-2348FEA1",
+    "logged_at": "2026-09-14T16:16:21.479047",
+    "forecast_id": "fcst_test_001",
+    "store_id": "S001",
+    "product_id": "P0001",
+    "predicted_demand": 120.0,
+    "inventory_level": 50,
+    "suggested_reorder_quantity": 40,
+    "action": "approved",
+    "modified_quantity": null,
+    "manager_notes": "Looks good"
   }
 ]

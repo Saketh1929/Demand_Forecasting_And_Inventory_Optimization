@@ -30,16 +30,19 @@ VALID_PAYLOAD = {
 }
 
 
-def test_v1_forecast_fails_visibly_when_model_is_missing():
+def test_v1_forecast_succeeds_with_loaded_model_artifacts():
     response = client.post("/api/v1/forecasts", json=VALID_PAYLOAD)
 
-    assert response.status_code == 500, response.text
+    assert response.status_code == 200, response.text
     payload = response.json()
 
-    assert payload["status"] == "failed"
-    assert payload["error"]["code"] == "FORECAST_ERROR"
-    assert "Trained model not found" in payload["error"]["message"]
-    assert "request_id" in payload
+    assert payload["status"] == "completed"
+    assert payload["request_id"]
+    assert payload["prediction"]["forecast_period"] == "1 month"
+    assert payload["prediction"]["predicted_demand_units"] > 0
+    assert payload["model"]["name"] == "dfio-demand-forecast"
+    assert payload["input_echo"]["store_id"] == "Store 1"
+    assert payload["input_echo"]["product_id"] == "P001"
 
 
 def test_v1_forecast_rejects_invalid_promotion_type():
@@ -76,7 +79,7 @@ def test_v1_forecast_requires_api_key_when_auth_enabled(monkeypatch):
     assert response.status_code == 401, response.text
 
 
-def test_v1_forecast_does_not_hide_missing_model_errors(monkeypatch):
+def test_v1_forecast_records_completed_audit_entry_when_model_is_loaded(monkeypatch):
     audit_path = Path("logs/forecast_audit.json")
     if audit_path.exists():
         audit_path.unlink()
@@ -85,10 +88,18 @@ def test_v1_forecast_does_not_hide_missing_model_errors(monkeypatch):
     monkeypatch.setattr(main_mod, "API_KEY", "", raising=False)
 
     response = client.post("/api/v1/forecasts", json=VALID_PAYLOAD)
-    assert response.status_code == 500, response.text
-    assert response.json()["status"] == "failed"
-    assert "Trained model not found" in response.json()["error"]["message"]
-    assert not audit_path.exists() or len(json.loads(audit_path.read_text(encoding="utf-8"))) == 0
+    assert response.status_code == 200, response.text
+
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["request_id"]
+    assert audit_path.exists()
+
+    records = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert len(records) > 0
+    assert records[-1]["request_id"] == payload["request_id"]
+    assert records[-1]["status"] == "completed"
+    assert records[-1]["prediction"]["forecast_period"] == "1 month"
 
 
 def test_approval_requires_admin_role(monkeypatch):

@@ -304,11 +304,27 @@ def normalize_store_id(raw_store_id: str) -> str:
     return raw_store_id
 
 
+def normalize_product_id(raw_product_id: str) -> str:
+    raw_product_id = str(raw_product_id).strip().upper()
+    if raw_product_id.lower().startswith("product "):
+        try:
+            product_number = int(raw_product_id.split()[-1])
+            return f"P{product_number:04d}"
+        except ValueError:
+            return raw_product_id
+    if raw_product_id.startswith("P") and raw_product_id[1:].isdigit():
+        try:
+            return f"P{int(raw_product_id[1:]):04d}"
+        except ValueError:
+            return raw_product_id
+    return raw_product_id
+
+
 def normalize_legacy_forecast_input(payload: ForecastRequestV1) -> dict:
     legacy_payload = {
         "date": datetime.now().strftime("%Y-%m-%d"),
         "store_id": normalize_store_id(payload.store_id),
-        "product_id": str(payload.product_id),
+        "product_id": normalize_product_id(payload.product_id),
         "category": payload.category,
         "region": payload.region,
         "inventory_level": int(payload.inventory_level),
