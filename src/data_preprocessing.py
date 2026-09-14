@@ -183,6 +183,48 @@ INPUT_MAPPING: dict[str, str] = {
     "demand": "Demand",
 }
 
+
+def normalize_store_id(raw_store_id: Any) -> str:
+    """Normalize a store identifier to the canonical S### format used by the model."""
+    if raw_store_id is None:
+        return ""
+    value = str(raw_store_id).strip()
+    if not value:
+        return ""
+    if value.lower().startswith("store "):
+        try:
+            return f"S{int(value.split()[-1]):03d}"
+        except ValueError:
+            return value
+    return value
+
+
+def normalize_product_id(raw_product_id: Any) -> str:
+    """Normalize a product identifier to the canonical P### format used by the model."""
+    if raw_product_id is None:
+        return ""
+    value = str(raw_product_id).strip()
+    if not value:
+        return ""
+    if value.lower().startswith("product "):
+        try:
+            return f"P{int(value.split()[-1]):03d}"
+        except ValueError:
+            return value.upper()
+    return value.upper()
+
+
+def extract_date_features(date_value: Any) -> dict[str, Any]:
+    """Return the canonical calendar features for a given observation date."""
+    date = pd.Timestamp(date_value) if date_value is not None and not pd.isna(date_value) else pd.Timestamp.now().normalize()
+    return _calendar_features_for_date(pd.Timestamp(date).normalize())
+
+
+def load_encoders(encoders_path: Path | str = ENCODERS_PATH) -> dict[str, Any]:
+    """Load the trained encoder artifact used by preprocessing and inference."""
+    return _load_encoders(Path(encoders_path))
+
+
 # In-memory cache for sales dataset to avoid repeated disk reads during inference
 _CACHED_SALES_DF: pd.DataFrame | None = None
 

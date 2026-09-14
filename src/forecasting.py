@@ -56,18 +56,91 @@ from src.data_preprocessing import (
 )
 
 
+def resolve_forecast_horizon(period: str | int) -> int:
+    """Map a human-friendly forecast period string to an integer horizon in days."""
+    if isinstance(period, int):
+        return max(1, period)
+    if not isinstance(period, str):
+        raise ValueError(f"Unsupported forecast period type: {type(period).__name__}")
 
-def forecast_tool(features: np.ndarray, model_path: Path | str | None = None) -> float:
-    """Predict one day of demand from a processed-data feature vector."""
+    normalized = period.strip().lower()
+    mapping = {
+        "1 week": 7,
+        "7 days": 7,
+        "1 month": 30,
+        "30 days": 30,
+        "3 months": 90,
+        "90 days": 90,
+        "6 months": 180,
+        "180 days": 180,
+        "1 year": 365,
+        "365 days": 365,
+    }
+    if normalized in mapping:
+        return mapping[normalized]
+    if normalized.endswith("days"):
+        try:
+            value = int(normalized.split()[0])
+            return max(1, value)
+        except ValueError:
+            pass
+    if normalized.endswith("months"):
+        try:
+            value = int(normalized.split()[0])
+            return max(1, value * 30)
+        except ValueError:
+            pass
+    raise ValueError(f"Unsupported forecast period: {period!r}")
+
+
+def load_model(model_path: Path | str | None = None) -> Any | None:
+    """Load the trained demand model when the artifact exists; otherwise return None."""
     path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
     if not path.exists():
-        raise FileNotFoundError(f"Model file not found at {path}")
+        return None
+    with path.open("rb") as file:
+        return pickle.load(file)
+
+
+def forecast_tool(
+    features: np.ndarray | PreprocessResult | dict[str, Any],
+    model_path: Path | str | None = None,
+    forecast_period: str | int | None = None,
+) -> float | dict[str, Any]:
+    """Predict demand from a processed feature vector or PreprocessResult.
+
+    When a forecast period is supplied, return a structured dictionary for the backend
+    pipeline. Without a forecast period, the function behaves like a pure single-step
+    predictor and returns a float value.
+    """
+    path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
+    if not path.exists():
+        raise FileNotFoundError(f"Trained model not found at {path}")
     with path.open("rb") as file:
         model = pickle.load(file)
+
+    if isinstance(features, dict):
+        feature_vector = np.asarray(features.get("feature_vector", features), dtype=float)
+    elif isinstance(features, PreprocessResult):
+        feature_vector = features.feature_vector
+    else:
+        feature_vector = np.asarray(features, dtype=float)
+
     expected = len(FEATURE_ORDER)
-    if features.ndim != 2 or features.shape != (1, expected):
-        raise ValueError(f"forecast_tool() expects shape (1, {expected}), got {features.shape}")
-    return max(0.0, round(float(model.predict(features)[0]), 1))
+    if feature_vector.ndim != 2 or feature_vector.shape != (1, expected):
+        raise ValueError(f"forecast_tool() expects shape (1, {expected}), got {feature_vector.shape}")
+
+    prediction = float(model.predict(feature_vector)[0])
+    prediction = max(0.0, round(prediction, 1))
+    if forecast_period is None:
+        return prediction
+
+    return {
+        "predicted_demand": prediction,
+        "status": "success",
+        "model_source": str(path),
+        "horizon_days": resolve_forecast_horizon(forecast_period),
+    }
 
 
 class ModelPredictor(Protocol):

@@ -1,0 +1,30 @@
+[
+  {
+    "request_id": "fcst_20260914104118_8919",
+    "timestamp": "2026-09-14T10:41:18Z",
+    "payload": {
+      "region": "North",
+      "category": "Electronics",
+      "forecast_period": "1 month",
+      "store_id": "Store 1",
+      "product_id": "P001",
+      "weather_condition": "Sunny",
+      "inventory_level": 250,
+      "discount_rate": 10.0,
+      "units_sold": 120,
+      "units_ordered": 100,
+      "promotion_active": true,
+      "epidemic": 0,
+      "competitor_pricing": 1499.0
+    },
+    "model_version": "1.0.0",
+    "status": "completed",
+    "prediction": {
+      "forecast_period": "1 month",
+      "predicted_demand_units": 285,
+      "recommended_order_quantity": 43,
+      "expected_stockout_risk": 0.1237,
+      "confidence_score": 0.78
+    }
+  }
+]
