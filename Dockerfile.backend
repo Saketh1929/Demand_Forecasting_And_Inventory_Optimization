@@ -1,0 +1,15 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the entire project to retain imports like `backend.api`
+COPY . .
+
+ENV PORT=8000
+EXPOSE $PORT
+
+# Run the FastAPI application
+CMD sh -c "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
