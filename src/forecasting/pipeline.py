@@ -1,159 +1,20 @@
-"""Recursive 1-day-ahead demand forecasting engine for M3 XGBoost model.
-
-Architecture & Contract:
-------------------------
-1. Model:
-   M3 trains ONE single-step XGBoost model predicting Demand(t):
-   Target = Demand(t).
-   There are NO separate models for 7, 30, 90, 180, 365 days.
-
-2. Recursive Forecasting Rollout:
-   Target date t (exogenous business factors & calendar)
-       ↓
-   preprocess_input(current_row, history_df=working_history)
-       ↓
-   NumPy feature vector of shape (1, 38) matching FEATURE_ORDER
-       ↓
-   M3 1-day-ahead XGBoost model -> predicts Demand(t)
-       ↓
-   Append predicted Demand(t) to working_history as Demand(t)
-       ↓
-   Advance target date to t+1, predict Demand(t+1)
-       ↓
-   Repeat recursively until requested forecast horizon H is reached
-
-3. Demand Lags & Rolling Continuity:
-   - For step 1 predicting target day t, lags are extracted from historical Demand:
-     lag_1 = Demand(t-1), lag_7 = Demand(t-7), lag_14 = Demand(t-14).
-   - When predicted Demand(t) is generated, it is appended to working_history.
-   - For step 2 predicting day t+1, lag_1 automatically becomes the predicted Demand(t),
-     and rolling statistics incorporate Demand(t) without future leakage.
-"""
-
 from __future__ import annotations
-
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from src.data_preprocessing import (
-    BUSINESS_FEATURES,
-    CALENDAR_FEATURES,
-    DATA_PATH,
-    ENCODERS_PATH,
-    FEATURE_COLUMNS_PATH,
-    FEATURE_ORDER,
-    INPUT_MAPPING,
-    LAG_FEATURES,
-    ONE_HOT_MAPPING,
-    ROLLING_FEATURES,
-    PreprocessResult,
-    preprocess_input,
+    BUSINESS_FEATURES, DATA_PATH, ENCODERS_PATH, FEATURE_COLUMNS_PATH,
+    INPUT_MAPPING, ONE_HOT_MAPPING, PreprocessResult, preprocess_input,
 )
-
-
-def resolve_forecast_horizon(period: str | int) -> int:
-    """Map a human-friendly forecast period string to an integer horizon in days."""
-    if isinstance(period, int):
-        return max(1, period)
-    if not isinstance(period, str):
-        raise ValueError(f"Unsupported forecast period type: {type(period).__name__}")
-
-    normalized = period.strip().lower()
-    mapping = {
-        "1 week": 7,
-        "7 days": 7,
-        "1 month": 30,
-        "30 days": 30,
-        "3 months": 90,
-        "90 days": 90,
-        "6 months": 180,
-        "180 days": 180,
-        "1 year": 365,
-        "365 days": 365,
-    }
-    if normalized in mapping:
-        return mapping[normalized]
-    if normalized.endswith("days"):
-        try:
-            value = int(normalized.split()[0])
-            return max(1, value)
-        except ValueError:
-            pass
-    if normalized.endswith("months"):
-        try:
-            value = int(normalized.split()[0])
-            return max(1, value * 30)
-        except ValueError:
-            pass
-    raise ValueError(f"Unsupported forecast period: {period!r}")
-
-
-def load_model(model_path: Path | str | None = None) -> Any | None:
-    """Load the trained demand model when the artifact exists; otherwise return None."""
-    path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
-    if not path.exists():
-        return None
-    with path.open("rb") as file:
-        return pickle.load(file)
-
-
-def forecast_tool(
-    features: np.ndarray | PreprocessResult | dict[str, Any],
-    model_path: Path | str | None = None,
-    forecast_period: str | int | None = None,
-) -> float | dict[str, Any]:
-    """Predict demand from a processed feature vector or PreprocessResult.
-
-    When a forecast period is supplied, return a structured dictionary for the backend
-    pipeline. Without a forecast period, the function behaves like a pure single-step
-    predictor and returns a float value.
-    """
-    path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
-    if not path.exists():
-        raise FileNotFoundError(f"Trained model not found at {path}")
-    with path.open("rb") as file:
-        model = pickle.load(file)
-
-    if isinstance(features, dict):
-        feature_vector = np.asarray(features.get("feature_vector", features), dtype=float)
-    elif isinstance(features, PreprocessResult):
-        feature_vector = features.feature_vector
-    else:
-        feature_vector = np.asarray(features, dtype=float)
-
-    expected = len(FEATURE_ORDER)
-    if feature_vector.ndim != 2 or feature_vector.shape != (1, expected):
-        raise ValueError(f"forecast_tool() expects shape (1, {expected}), got {feature_vector.shape}")
-
-    prediction = float(model.predict(feature_vector)[0])
-    prediction = max(0.0, round(prediction, 1))
-    if forecast_period is None:
-        return prediction
-
-    return {
-        "predicted_demand": prediction,
-        "status": "success",
-        "model_source": str(path),
-        "horizon_days": resolve_forecast_horizon(forecast_period),
-    }
-
-
-class ModelPredictor(Protocol):
-    """Protocol for any demand forecasting model implementing .predict()."""
-
-    def predict(self, X: np.ndarray) -> np.ndarray | list[float] | float:
-        ...
-
+from src.forecasting.model import ModelPredictor
 
 @dataclass
 class ForecastResult:
-    """Structured result returned by the recursive forecasting engine."""
-
     forecast_df: pd.DataFrame
     predictions: list[float]
     total_demand: float
@@ -167,7 +28,6 @@ class ForecastResult:
     feature_columns: list[str]
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to standard Python dictionary for downstream consumption."""
         return {
             "forecast_df": self.forecast_df,
             "predictions": self.predictions,
@@ -181,10 +41,7 @@ class ForecastResult:
             "feature_columns": self.feature_columns,
         }
 
-
 class ForecastEngine:
-    """Recursive forecasting engine executing 1-day-ahead rollouts with 38 features."""
-
     def __init__(
         self,
         model: ModelPredictor | None = None,
@@ -198,7 +55,7 @@ class ForecastEngine:
         self.data_path = Path(data_path)
         self.model: ModelPredictor | None = model
         if self.model is None:
-            path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[1] / "models" / "best_model.pkl"
+            path = Path(model_path) if model_path is not None else Path(__file__).resolve().parents[2] / "models" / "best_model.pkl"
             if path.exists():
                 self.model = self._load_model(path)
 
@@ -217,35 +74,12 @@ class ForecastEngine:
         future_business_schedule: pd.DataFrame | list[dict[str, Any]] | None = None,
         model: ModelPredictor | None = None,
     ) -> ForecastResult:
-        """Generate multi-day demand forecasts recursively using ONE 1-day-ahead model.
-
-        Parameters
-        ----------
-        current_row : dict[str, Any]
-            State of observation for the first forecast step t (store, product, date, business features).
-        horizon : int, default 7
-            Number of days to forecast ahead (H >= 1).
-        history_df : pd.DataFrame | None, optional
-            Historical sales/demand DataFrame containing Date, Store ID, Product ID, Demand.
-            Must contain at least 14 days of history prior to the first forecast date.
-        future_business_schedule : pd.DataFrame | list[dict[str, Any]] | None, optional
-            Optional known exogenous schedule for future dates (e.g. planned price, promotions).
-        model : ModelPredictor | None, optional
-            Optional model override implementing predict(features).
-
-        Returns
-        -------
-        ForecastResult
-            Structured result containing daily forecast table, demand totals, and metadata.
-        """
         if horizon < 1:
             raise ValueError(f"Forecast horizon must be a positive integer (>= 1), got {horizon}.")
 
         active_model = model or self.model
         if active_model is None:
-            raise ValueError(
-                "No forecasting model provided. Pass 'model' to forecast() or initialize ForecastEngine with a model."
-            )
+            raise ValueError("No forecasting model provided.")
 
         norm_row: dict[str, Any] = {}
         for k, v in current_row.items():
@@ -259,21 +93,18 @@ class ForecastEngine:
         if not store_id or not product_id:
             raise ValueError("current_row must contain valid Store ID and Product ID.")
 
-        # Resolve initial forecast date t
         raw_date = norm_row.get("Date", norm_row.get("date"))
         if raw_date is None or pd.isna(raw_date):
             target_date = pd.Timestamp.now().normalize()
         else:
             target_date = pd.Timestamp(raw_date).normalize()
 
-        # Initialize recursive working history
         if history_df is not None and not history_df.empty:
             working_history = history_df.copy()
             date_col = "Date" if "Date" in working_history.columns else "date"
             if not pd.api.types.is_datetime64_any_dtype(working_history[date_col]):
                 working_history[date_col] = pd.to_datetime(working_history[date_col], errors="coerce")
         else:
-            # If no history provided, attempt to load from raw sales data
             if self.data_path.exists():
                 raw_df = pd.read_csv(self.data_path, parse_dates=["Date"])
                 working_history = raw_df[
@@ -282,11 +113,8 @@ class ForecastEngine:
                     (raw_df["Date"] < target_date)
                 ].copy()
             else:
-                working_history = pd.DataFrame(
-                    columns=["Date", "Store ID", "Product ID", "Demand"]
-                )
+                working_history = pd.DataFrame(columns=["Date", "Store ID", "Product ID", "Demand"])
 
-        # Process future schedule if provided
         schedule_by_date: dict[str, dict[str, Any]] = {}
         if future_business_schedule is not None:
             if isinstance(future_business_schedule, pd.DataFrame):
@@ -303,15 +131,12 @@ class ForecastEngine:
         daily_forecasts: list[dict[str, Any]] = []
         predictions: list[float] = []
         current_step_row = dict(norm_row)
-
         last_preprocess_result: PreprocessResult | None = None
 
-        # Recursive Rollout Loop
         for step in range(1, horizon + 1):
             target_date_str = str(target_date.date())
             current_step_row["Date"] = target_date_str
 
-            # Apply future scheduled exogenous features if available
             if target_date_str in schedule_by_date:
                 for b_col in BUSINESS_FEATURES:
                     if b_col in schedule_by_date[target_date_str]:
@@ -320,7 +145,6 @@ class ForecastEngine:
                     if c_col in schedule_by_date[target_date_str]:
                         current_step_row[c_col] = schedule_by_date[target_date_str][c_col]
 
-            # 1. Build the feature vector matching the 38-feature contract.
             prep_result = preprocess_input(
                 row=current_step_row,
                 history_df=working_history,
@@ -329,24 +153,18 @@ class ForecastEngine:
                 feature_columns_path=self.feature_columns_path,
                 data_path=self.data_path,
             )
-            if not isinstance(prep_result, PreprocessResult):
-                raise TypeError(f"Expected PreprocessResult from preprocess_input, got {type(prep_result)}")
             last_preprocess_result = prep_result
             feature_vector = prep_result.feature_vector
 
-            # 2. Predict Demand(t) using the one-day model
             raw_prediction = active_model.predict(feature_vector)
-
             if isinstance(raw_prediction, (np.ndarray, list)):
                 pred_demand = float(raw_prediction[0])
             else:
                 pred_demand = float(raw_prediction)
 
-            # Enforce non-negative demand constraint
             pred_demand = max(0.0, pred_demand)
             predictions.append(pred_demand)
 
-            # Record daily forecast entry
             daily_forecasts.append(
                 {
                     "step": step,
@@ -357,21 +175,15 @@ class ForecastEngine:
                 }
             )
 
-            # 3. Update Recursive History
-            # Record predicted demand at target_date into working history
-            new_history_row = pd.DataFrame(
-                [
-                    {
-                        "Date": target_date,
-                        "Store ID": store_id,
-                        "Product ID": product_id,
-                        "Demand": pred_demand,
-                    }
-                ]
-            )
+            new_history_row = pd.DataFrame([
+                {
+                    "Date": target_date,
+                    "Store ID": store_id,
+                    "Product ID": product_id,
+                    "Demand": pred_demand,
+                }
+            ])
             working_history = pd.concat([working_history, new_history_row], ignore_index=True)
-
-            # 4. Advance target date for step + 1
             target_date = target_date + pd.Timedelta(days=1)
 
         forecast_df = pd.DataFrame(daily_forecasts)
@@ -391,12 +203,11 @@ class ForecastEngine:
             horizon=horizon,
             store_id=store_id,
             product_id=product_id,
-            start_date=daily_forecasts[0]["date"],
-            end_date=daily_forecasts[-1]["date"],
+            start_date=daily_forecasts[0]["date"] if daily_forecasts else "",
+            end_date=daily_forecasts[-1]["date"] if daily_forecasts else "",
             history_df=working_history,
             feature_columns=feature_columns,
         )
-
 
 def forecast_demand(
     model: ModelPredictor,
@@ -408,7 +219,6 @@ def forecast_demand(
     feature_columns_path: Path = FEATURE_COLUMNS_PATH,
     data_path: Path = DATA_PATH,
 ) -> ForecastResult:
-    """Functional interface for recursive demand forecasting."""
     engine = ForecastEngine(
         model=model,
         encoders_path=encoders_path,
