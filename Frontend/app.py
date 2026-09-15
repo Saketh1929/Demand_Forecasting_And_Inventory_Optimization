@@ -185,50 +185,6 @@ with st.sidebar:
     st.caption("FORECAST PERIOD")
     st.write(f"📅 {selected_period}")
 
-
-    # =====================================================
-    # AI FORECAST ENGINE
-    # =====================================================
-
-    model_col1, model_col2 = st.sidebar.columns(2)
-
-latest_response = st.session_state.forecast_response
-
-if latest_response:
-    accuracy = latest_response.get("model", {}).get("accuracy") if isinstance(latest_response, dict) and "model" in latest_response else None
-    confidence = latest_response.get("confidence_score")
-
-    accuracy_display = (
-        f"{accuracy * 100:.1f}%"
-        if isinstance(accuracy, (int, float))
-        else "---%"
-    )
-
-    confidence_display = (
-        f"{confidence * 100:.1f}%"
-        if isinstance(confidence, (int, float))
-        else "---%"
-    )
-
-else:
-    accuracy_display = "---%"
-    confidence_display = "---%"
-
-
-with model_col1:
-    st.metric(
-        "Accuracy",
-        accuracy_display
-    )
-
-
-with model_col2:
-    st.metric(
-        "Confidence",
-        confidence_display
-    )
-
-
     # =====================================================
     # FOOTER
     # =====================================================
@@ -677,17 +633,14 @@ if forecast_data is not None:
     stock_status = data.get("status", "N/A")
     urgency = data.get("urgency", "N/A")
     stockout_risk = data.get("expected_stockout_risk")
-    confidence = data.get("confidence_score")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("📦 Predicted Demand", f"{predicted_demand} units")
     with col2:
         st.metric("🛒 Recommended Order", f"{recommended_order} units")
     with col3:
         st.metric("⚠️ Stockout Risk", f"{stockout_risk * 100:.1f}%" if isinstance(stockout_risk, (int, float)) else "N/A")
-    with col4:
-        st.metric("🎯 Confidence", f"{confidence * 100:.1f}%" if isinstance(confidence, (int, float)) else "N/A")
 
     st.subheader("📦 Inventory Context")
     context_col1, context_col2, context_col3, context_col4 = st.columns(4)
