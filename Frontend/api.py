@@ -2,7 +2,7 @@ import os
 import requests
 import streamlit as st
 
-API_BASE_URL = os.getenv("DFIO_API_BASE_URL", "http://localhost:8000").rstrip("/")
+API_BASE_URL = os.getenv("DFIO_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 FORECAST_ENDPOINT = f"{API_BASE_URL}/api/v1/forecasts"
 AGENT_FORECAST_ENDPOINT = f"{API_BASE_URL}/api/forecast"
 APPROVAL_ENDPOINT = f"{API_BASE_URL}/api/approve"
