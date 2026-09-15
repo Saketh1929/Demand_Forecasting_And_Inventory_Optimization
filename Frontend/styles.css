@@ -871,7 +871,9 @@ div[data-testid="stVerticalBlockBorderWrapper"]:hover {
 
     transition: 0.2s ease;
 }
-
+[data-testid="stMetricValue"] {
+    font-size: 25px !important;
+}
 
 [data-testid="stMetric"]:hover {
 
