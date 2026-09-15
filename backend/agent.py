@@ -6,6 +6,16 @@ from backend.data_preprocessing import preprocess_input
 from backend.forecasting import ForecastEngine, forecast_tool, resolve_forecast_horizon
 from backend.inventory import evaluate_inventory
 
+def compute_stockout_risk(inventory_level: int, predicted_demand: float) -> float:
+    """Compute stockout risk from the backend inventory state and demand forecast."""
+    if predicted_demand <= 0:
+        return 0.0
+    if inventory_level <= 0:
+        return 1.0
+    risk = max(0.0, 1.0 - (inventory_level / max(predicted_demand, 1.0)))
+    return round(min(1.0, max(0.0, risk)), 4)
+
+
 def generate_fallback_recommendation(
     store_id: str,
     product_id: str,
@@ -169,6 +179,9 @@ Provide a clear executive recommendation explaining why the action is suggested.
         "details": llm_details
     })
 
+    expected_stockout_risk = compute_stockout_risk(inventory_level, predicted_demand)
+    confidence_score = None
+
     return {
         "forecast_id": forecast_id,
         "timestamp": timestamp,
@@ -188,6 +201,8 @@ Provide a clear executive recommendation explaining why the action is suggested.
         "tool_trace": tool_trace,
         "horizon_days": horizon_days,
         "forecast_period": forecast_period,
+        "expected_stockout_risk": expected_stockout_risk,
+        "confidence_score": confidence_score,
         "daily_forecasts": daily_forecasts,
         "mean_daily_demand": mean_daily_demand,
     }
