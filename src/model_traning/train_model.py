@@ -107,11 +107,15 @@ def get_feature_order() -> list[str]:
 def _metrics(y_true: pd.Series, predictions: np.ndarray, split: str) -> dict[str, Any]:
     actual = y_true.to_numpy(dtype=float)
     error = actual - predictions
+    nonzero_actual = actual != 0
     return {
         "split": split,
         "rows": int(len(actual)),
         "mae": round(float(mean_absolute_error(actual, predictions)), 4),
         "rmse": round(float(np.sqrt(np.mean(error**2))), 4),
+        "mape": round(
+            float(np.mean(np.abs(error[nonzero_actual] / actual[nonzero_actual])) * 100), 4
+        ),
         "wape": round(float(np.sum(np.abs(error)) / np.sum(np.abs(actual)) * 100), 4),
         "r2": round(float(r2_score(actual, predictions)), 4),
     }
@@ -121,14 +125,15 @@ def build_model() -> xgb.XGBRegressor:
     """Return the fixed M3 XGBoost configuration used for reproducible training."""
     return xgb.XGBRegressor(
         objective="reg:squarederror",
-        n_estimators=300,
-        max_depth=6,
-        learning_rate=0.05,
+        n_estimators=500,
+        max_depth=9,
+        learning_rate=0.03,
         subsample=0.8,
         colsample_bytree=0.8,
-        min_child_weight=5,
-        gamma=0.1,
-        reg_alpha=0.1,
+        min_child_weight=3,
+        gamma=0.0,
+        reg_alpha=0.05,
+        reg_lambda=1.0,
         random_state=42,
         n_jobs=-1,
         verbosity=0,
@@ -158,13 +163,13 @@ def write_report(
         f"| Test | 2023-10-01 onward | {row_counts['test']:,} |",
         "",
         "## Metrics",
-        "| Set | MAE | RMSE | WAPE (%) | R² |",
-        "|---|---:|---:|---:|---:|",
+        "| Set | MAE | RMSE | MAPE (%) | WAPE (%) | R² |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
     for result in metrics:
         lines.append(
             f"| {result['split']} | {result['mae']} | {result['rmse']} | "
-            f"{result['wape']} | {result['r2']} |"
+            f"{result['mape']} | {result['wape']} | {result['r2']} |"
         )
     lines.extend(
         [
