@@ -11,7 +11,6 @@ st.markdown("""
     margin-top: 0px !important;
     margin-bottom: 4px !important;
 }
-    7 lone 
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {
     gap: 0.5rem !important;
 }
@@ -641,6 +640,7 @@ if test:
 
             if response.status_code == 200:
                 st.session_state.forecast_response = response.json()
+                st.session_state.approval_response = None
                 st.success("✅ AI Demand Forecast Completed")
             elif response.status_code in (400, 422):
                 try:
