@@ -189,3 +189,53 @@ def test_legacy_forecast_endpoint_uses_requested_horizon():
     assert results["3 months"]["forecast_period"] == "3 months"
     assert results["6 months"]["forecast_period"] == "6 months"
     assert results["1 year"]["forecast_period"] == "1 year"
+
+
+def test_legacy_forecast_response_includes_backend_metrics_fields():
+    response = client.post(
+        "/api/forecast",
+        json={
+            "date": "2024-02-15",
+            "store_id": "S001",
+            "product_id": "P0001",
+            "category": "Groceries",
+            "region": "North",
+            "inventory_level": 120,
+            "units_sold": 80,
+            "units_ordered": 50,
+            "price": 25.0,
+            "discount": 10.0,
+            "competitor_pricing": 25.0,
+            "weather_condition": "Sunny",
+            "promotion": 0,
+            "seasonality": "Spring",
+            "epidemic": 0,
+            "forecast_period": "1 month",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    required_fields = {
+        "forecast_id",
+        "predicted_demand",
+        "forecast_period",
+        "horizon_days",
+        "gap",
+        "status",
+        "urgency",
+        "reorder_quantity",
+        "requires_approval",
+        "recommendation",
+        "reasoning_source",
+        "expected_stockout_risk",
+        "confidence_score",
+    }
+
+    missing = required_fields - payload.keys()
+    assert not missing, f"Missing required backend fields: {missing}"
+    assert payload["forecast_period"] == "1 month"
+    assert payload["horizon_days"] == 30
+    assert isinstance(payload["expected_stockout_risk"], (int, float, type(None)))
+    assert payload["confidence_score"] is None or isinstance(payload["confidence_score"], (int, float))

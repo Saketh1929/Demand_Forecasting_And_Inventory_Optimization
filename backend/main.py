@@ -202,6 +202,8 @@ class ForecastResponse(BaseModel):
     requires_approval: bool
     recommendation: str
     reasoning_source: str
+    expected_stockout_risk: Optional[float] = Field(default=None, description="Stockout risk computed by backend logic")
+    confidence_score: Optional[float] = Field(default=None, description="Backend confidence metric, if available")
     tool_trace: List[ToolTraceItem]
 
 
@@ -435,7 +437,7 @@ def get_stores(region: Optional[str] = Query(default=None, description="Optional
 
 @app.get("/api/v1/products", tags=["Metadata"])
 def get_products(category: Optional[str] = Query(default=None, description="Optional category filter")):
-    products = [f"P{i:03d}" for i in range(1, 5)]
+    products = [f"P{i:04d}" for i in range(1, 21)]
     return {"products": products}
 
 

@@ -11,7 +11,7 @@ st.markdown("""
     margin-top: 0px !important;
     margin-bottom: 4px !important;
 }
-
+    7 lone 
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {
     gap: 0.5rem !important;
 }
@@ -196,12 +196,8 @@ with st.sidebar:
 latest_response = st.session_state.forecast_response
 
 if latest_response:
-
-    model_data = latest_response.get("model", {})
-    prediction_data = latest_response.get("prediction", {})
-
-    accuracy = model_data.get("accuracy")
-    confidence = prediction_data.get("confidence_score")
+    accuracy = latest_response.get("model", {}).get("accuracy") if isinstance(latest_response, dict) and "model" in latest_response else None
+    confidence = latest_response.get("confidence_score")
 
     accuracy_display = (
         f"{accuracy * 100:.1f}%"
@@ -346,7 +342,7 @@ with st.container(border=True):
     with col2:
         product_id = st.selectbox(
             "Product ID *",
-            ["P001", "P002", "P003", "P004"],
+            [f"P{i:04d}" for i in range(1, 21)],
             index=None,
             placeholder="Select product"
         )
@@ -491,14 +487,14 @@ with st.container(border=True):
     )
 
 # =========================
-# COMPETITOR PRICING
+# PRICING
 # =========================
 with st.container(border=True):
 
     st.markdown(
         """
         <div class="input-card-title">
-            💰 Competitor Pricing
+            💰 Pricing Inputs
         </div>
         """,
         unsafe_allow_html=True
@@ -506,19 +502,30 @@ with st.container(border=True):
 
     st.markdown(
         '<div style="color:#6f8fb5; font-size:14px; margin-top:6px; margin-bottom:10px;">'
-        'Competitor product price in ₹.'
+        'Own price and competitor price are tracked independently.'
         '</div>',
         unsafe_allow_html=True
     )
 
-    competitor_pricing = st.number_input(
-        "Competitor Pricing *",
-        min_value=0.0,
-        max_value=10000.0,
-        step=1.0,
-        format="%.2f",
-        label_visibility="collapsed"
-    )
+    price_col, competitor_col = st.columns(2)
+
+    with price_col:
+        price = st.number_input(
+            "Price *",
+            min_value=0.0,
+            max_value=10000.0,
+            step=1.0,
+            format="%.2f",
+        )
+
+    with competitor_col:
+        competitor_pricing = st.number_input(
+            "Competitor Pricing *",
+            min_value=0.0,
+            max_value=10000.0,
+            step=1.0,
+            format="%.2f",
+        )
 
 # =========================================================
 # LIVE INPUT SUMMARY
@@ -582,14 +589,11 @@ with button_col2:
 # =========================================================
 # RESULT
 # =========================================================
+if "forecast_response" not in st.session_state:
+    st.session_state.forecast_response = None
+
 if test:
-
-    # =====================================================
-    # FRONTEND VALIDATION
-    # =====================================================
-
     missing_fields = []
-
     required_values = {
         "Region": region,
         "Category": category,
@@ -597,36 +601,16 @@ if test:
         "Store Name": store_id,
         "Product ID": product_id,
         "Weather Condition": weather_condition,
-        "Epidemic": epidemic
+        "Epidemic": epidemic,
     }
-
     for field_name, value in required_values.items():
-
         if value is None:
             missing_fields.append(field_name)
 
-
-    # =====================================================
-    # VALIDATION ERROR
-    # =====================================================
-
     if missing_fields:
-
-        st.error(
-            "⚠️ Please select all required fields before running the forecast."
-        )
-
-        st.warning(
-            "Missing: " + ", ".join(missing_fields)
-        )
-
-
+        st.error("⚠️ Please select all required fields before running the forecast.")
+        st.warning("Missing: " + ", ".join(missing_fields))
     else:
-
-        # =================================================
-        # CREATE API PAYLOAD
-        # =================================================
-
         payload = {
             "date": "2024-02-15",
             "store_id": f"S{int(store_id.split()[-1]):03d}",
@@ -636,9 +620,9 @@ if test:
             "inventory_level": int(inventory_level),
             "units_sold": int(units_sold),
             "units_ordered": int(units_ordered),
-            "price": max(float(competitor_pricing), 0.01),
+            "price": float(price),
             "discount": float(discount_rate),
-            "competitor_pricing": max(float(competitor_pricing), 0.01),
+            "competitor_pricing": float(competitor_pricing),
             "weather_condition": weather_condition,
             "promotion": int(promotion),
             "seasonality": "Spring",
@@ -646,334 +630,84 @@ if test:
             "forecast_period": time_range,
         }
 
-
-        # =================================================
-        # SEND REQUEST TO BACKEND
-        # =================================================
-
         try:
-
-            with st.spinner(
-                "🧠 AI model is generating the forecast..."
-            ):
-
+            with st.spinner("🧠 AI model is generating the forecast..."):
                 response = requests.post(
-                AGENT_FORECAST_ENDPOINT,
-                headers=API_HEADERS,
-                json=payload,
-                timeout=30
-                )    
-
-
-            # =================================================
-            # SUCCESS
-            # =================================================
-
-            if  response.status_code == 200:
-
-                data = response.json()
-
-                st.session_state.forecast_response = data
-
-                status = data.get("status", "completed")
-
-
-                if response.status_code == 200:
-
-                    st.success(
-                        "✅ AI Demand Forecast Completed"
-                    )
-
-
-                    prediction = data.get(
-                        "prediction",
-                        {}
-                    )
-
-                    model = data.get(
-                        "model",
-                        {})
-
-
-                    # =============================================
-                    # GET MODEL OUTPUTS
-                    # =============================================
-
-                    predicted_demand = data.get("predicted_demand", "N/A")
-
-                    recommended_order = data.get("reorder_quantity", "N/A")
-
-                    predicted_value = float(predicted_demand) if isinstance(predicted_demand, (int, float)) else 0
-                    inventory_gap = data.get("gap", "N/A")
-                    stock_status = data.get("status", "N/A")
-                    urgency = data.get("urgency", "N/A")
-                    requires_approval = bool(data.get("requires_approval", False))
-                    stockout_risk = max(0.0, min(1.0, -float(inventory_gap) / predicted_value)) if predicted_value > 0 and isinstance(inventory_gap, (int, float)) else None
-
-                    confidence = 0.91 if data.get("reasoning_source") == "Gemini LLM (google-genai)" else 0.78
-
-
-                    # =============================================
-                    # DISPLAY RESULTS
-                    # =============================================
-
-                    col1, col2, col3, col4 = st.columns(4)
-
-
-                    with col1:
-
-                        st.metric(
-                            "📦 Predicted Demand",
-                            f"{predicted_demand} units"
-                        )
-
-
-                    with col2:
-
-                        st.metric(
-                            "🛒 Recommended Order",
-                            f"{recommended_order} units"
-                        )
-
-
-                    with col3:
-
-                        if isinstance(
-                            stockout_risk,
-                            (int, float)
-                        ):
-
-                            risk_display = (
-                                f"{stockout_risk * 100:.1f}%"
-                            )
-
-                        else:
-
-                            risk_display = "N/A"
-
-
-                        st.metric(
-                            "⚠️ Stockout Risk",
-                            risk_display
-                        )
-
-
-                    with col4:
-
-                        if isinstance(
-                            confidence,
-                            (int, float)
-                        ):
-
-                            confidence_display = (
-                                f"{confidence * 100:.1f}%"
-                            )
-
-                        else:
-
-                            confidence_display = "N/A"
-
-
-                        st.metric(
-                            "🎯 Confidence",
-                            confidence_display
-                        )
-
-                    st.subheader("📦 Inventory Context")
-                    context_col1, context_col2, context_col3, context_col4 = st.columns(4)
-                    context_col1.metric("Inventory Gap", f"{inventory_gap} units")
-                    context_col2.metric("Stock Status", stock_status)
-                    context_col3.metric("Urgency", urgency)
-                    context_col4.metric("Recommended Order", f"{recommended_order} units")
-                    st.metric("Expected Stockout Risk", f"{stockout_risk * 100:.1f}%" if stockout_risk is not None else "N/A")
-
-                    st.subheader("🧠 Executive Recommendation / AI Analysis")
-                    st.info(data.get("recommendation", "No recommendation was returned by the backend."))
-                    st.caption(f"Reasoning source: {data.get('reasoning_source', 'N/A')}")
-
-
-                    # =============================================
-                    # MODEL INFORMATION
-                    # =============================================
-
-                    accuracy = model_status.get("accuracy") if model_status else None
-
-                    if isinstance(
-                        accuracy,
-                        (int, float)
-                    ):
-
-                        accuracy_display = (
-                            f"{accuracy * 100:.1f}%"
-                        )
-
-                    else:
-
-                        accuracy_display = "N/A"
-
-
-                    st.info(
-
-                        f"🤖 Model: "
-                        f"{model_status.get('model_name', 'N/A') if model_status else 'N/A'} "
-
-                        f" | Version: "
-                        f"{model_status.get('model_version', 'N/A') if model_status else 'N/A'} "
-
-                        f" | Accuracy: "
-                        f"{accuracy_display} "
-
-                        f" | Request ID: "
-                        f"{data.get('request_id', data.get('forecast_id', 'N/A'))} "
-
-                        f" | Generated: "
-                        f"{data.get('generated_at', data.get('timestamp', 'N/A'))}"
-
-                    )
-
-
-                elif status == "queued":
-
-                    st.info(
-
-                        "⏳ Forecast request has been queued. "
-
-                        f"Request ID: "
-                        f"{data.get('request_id', 'N/A')}"
-
-                    )
-
-
-                else:
-
-                    st.error(
-                        "❌ Forecast failed. Please try again."
-                    )
-
-
-            # =================================================
-            # VALIDATION ERROR
-            # =================================================
-
+                    AGENT_FORECAST_ENDPOINT,
+                    headers=API_HEADERS,
+                    json=payload,
+                    timeout=30,
+                )
+
+            if response.status_code == 200:
+                st.session_state.forecast_response = response.json()
+                st.success("✅ AI Demand Forecast Completed")
             elif response.status_code in (400, 422):
-
                 try:
-
                     error_data = response.json()
-
-                    error = error_data.get(
-                        "error",
-                        {}
-                    )
-
-                    st.error(
-
-                        "❌ " +
-                        error.get(
-                            "message",
-                            "Invalid input values."
-                        )
-
-                    )
-
-
-                    fields = error.get(
-                        "fields",
-                        {}
-                    )
-
-
-                    for field, message in fields.items():
-
-                        st.warning(
-                            f"{field}: {message}"
-                        )
-
-
+                    error = error_data.get("error", {})
+                    st.error("❌ " + error.get("message", "Invalid input values."))
+                    for field, message in error.get("fields", {}).items():
+                        st.warning(f"{field}: {message}")
                 except ValueError:
-
-                    st.error(
-                        "❌ Backend validation failed."
-                    )
-
-
-            # =================================================
-            # OTHER API ERRORS
-            # =================================================
-
+                    st.error("❌ Backend validation failed.")
             elif response.status_code == 404:
-
-                st.error(
-                    "❌ Store or product was not found."
-                )
-
-
+                st.error("❌ Store or product was not found.")
             elif response.status_code == 409:
-
-                st.error(
-                    "⚠️ Inventory data is stale or conflicting."
-                )
-
-
+                st.error("⚠️ Inventory data is stale or conflicting.")
             elif response.status_code == 429:
-
-                st.error(
-                    "⚠️ Too many requests. Please try again later."
-                )
-
-
+                st.error("⚠️ Too many requests. Please try again later.")
             elif response.status_code in (500, 503):
-
-                st.error(
-                    "⚠️ Forecast service is currently unavailable."
-                )
-
-
+                st.error("⚠️ Forecast service is currently unavailable.")
             else:
-
-                st.error(
-
-                    f"❌ Backend returned HTTP "
-                    f"{response.status_code}"
-
-                )
-
-
-        # =====================================================
-        # CONNECTION ERROR
-        # =====================================================
-
+                st.error(f"❌ Backend returned HTTP {response.status_code}")
         except requests.exceptions.ConnectionError:
-
-            st.error(
-
-                "❌ Cannot connect to the DFIO backend. "
-                f"Please make sure the backend is running at "
-                f"{API_BASE_URL}"
-
-            )
-
-
-        # =====================================================
-        # TIMEOUT
-        # =====================================================
-
+            st.error(f"❌ Cannot connect to the DFIO backend. Please make sure the backend is running at {API_BASE_URL}")
         except requests.exceptions.Timeout:
-
-            st.error(
-                "⏱️ Forecast request timed out. Please try again."
-            )
-
-
-        # =====================================================
-        # OTHER REQUEST ERROR
-        # =====================================================
-
+            st.error("⏱️ Forecast request timed out. Please try again.")
         except requests.exceptions.RequestException as e:
+            st.error(f"❌ Network error: {e}")
 
-            st.error(
-                f"❌ Network error: {e}"
-            )
+forecast_data = st.session_state.forecast_response
+if forecast_data is not None:
+    data = forecast_data
+    predicted_demand = data.get("predicted_demand", "N/A")
+    recommended_order = data.get("reorder_quantity", "N/A")
+    inventory_gap = data.get("gap", "N/A")
+    stock_status = data.get("status", "N/A")
+    urgency = data.get("urgency", "N/A")
+    stockout_risk = data.get("expected_stockout_risk")
+    confidence = data.get("confidence_score")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("📦 Predicted Demand", f"{predicted_demand} units")
+    with col2:
+        st.metric("🛒 Recommended Order", f"{recommended_order} units")
+    with col3:
+        st.metric("⚠️ Stockout Risk", f"{stockout_risk * 100:.1f}%" if isinstance(stockout_risk, (int, float)) else "N/A")
+    with col4:
+        st.metric("🎯 Confidence", f"{confidence * 100:.1f}%" if isinstance(confidence, (int, float)) else "N/A")
+
+    st.subheader("📦 Inventory Context")
+    context_col1, context_col2, context_col3, context_col4 = st.columns(4)
+    context_col1.metric("Inventory Gap", f"{inventory_gap} units")
+    context_col2.metric("Stock Status", stock_status)
+    context_col3.metric("Urgency", urgency)
+    context_col4.metric("Recommended Order", f"{recommended_order} units")
+
+    st.subheader("🧠 Executive Recommendation / AI Analysis")
+    st.info(data.get("recommendation", "No recommendation was returned by the backend."))
+    st.caption(f"Reasoning source: {data.get('reasoning_source', 'N/A')}")
+
+    accuracy = model_status.get("accuracy") if model_status else None
+    accuracy_display = f"{accuracy * 100:.1f}%" if isinstance(accuracy, (int, float)) else "N/A"
+    st.info(
+        f"🤖 Model: {model_status.get('model_name', 'N/A') if model_status else 'N/A'} | "
+        f"Version: {model_status.get('model_version', 'N/A') if model_status else 'N/A'} | "
+        f"Accuracy: {accuracy_display} | Request ID: {data.get('forecast_id', 'N/A')} | "
+        f"Generated: {data.get('timestamp', 'N/A')}"
+    )
 
 
 # =========================================================
