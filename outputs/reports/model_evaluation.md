@@ -12,12 +12,12 @@ All preprocessed rows (74,600 total) are used. Multi-day forecast horizons are g
 | Test | 2023-10-01 onward | 12,200 |
 
 ## Metrics
-| Set | MAE | RMSE | WAPE (%) | R² |
-|---|---:|---:|---:|---:|
-| Validation | 18.7541 | 26.3455 | 16.2371 | 0.6964 |
-| Test | 16.8299 | 23.0801 | 17.0537 | 0.7361 |
+| Set | MAE | RMSE | MAPE (%) | WAPE (%) | R² |
+|---|---:|---:|---:|---:|---:|
+| Validation | 12.9368 | 19.5036 | 15.9523 | 11.2006 | 0.8336 |
+| Test | 12.017 | 17.1046 | 19.4257 | 12.1769 | 0.8551 |
 
-Residual standard deviation on the held-out test set: `23.0798`.
+Residual standard deviation on the held-out test set: `17.0896`.
 
 ## Feature Contract
 Target column: `Demand` (Demand at date t).
