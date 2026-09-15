@@ -140,3 +140,52 @@ def test_forecast_period_mapping_uses_requested_horizon():
     assert resolve_forecast_horizon("3 months") == 90
     assert resolve_forecast_horizon("6 months") == 180
     assert resolve_forecast_horizon("1 year") == 365
+
+
+def test_legacy_forecast_endpoint_uses_requested_horizon():
+    periods = ["1 week", "1 month", "3 months", "6 months", "1 year"]
+    results = {}
+
+    for period in periods:
+        response = client.post(
+            "/api/forecast",
+            json={
+                "date": "2024-02-15",
+                "store_id": "S001",
+                "product_id": "P0001",
+                "category": "Groceries",
+                "region": "North",
+                "inventory_level": 120,
+                "units_sold": 80,
+                "units_ordered": 50,
+                "price": 25.0,
+                "discount": 10.0,
+                "competitor_pricing": 25.0,
+                "weather_condition": "Sunny",
+                "promotion": 0,
+                "seasonality": "Spring",
+                "epidemic": 0,
+                "forecast_period": period,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["forecast_period"] == period
+        assert payload["horizon_days"] == resolve_forecast_horizon(period)
+        assert payload["predicted_demand"] > 0
+        results[period] = payload
+
+    demand_values = [results[period]["predicted_demand"] for period in periods]
+    gap_values = [results[period]["gap"] for period in periods]
+    reorder_values = [results[period]["reorder_quantity"] for period in periods]
+
+    assert demand_values[1:] > [demand_values[i] for i in range(len(demand_values) - 1)]
+    assert all(current < previous for previous, current in zip(gap_values, gap_values[1:]))
+    assert reorder_values[1:] > [reorder_values[i] for i in range(len(reorder_values) - 1)]
+
+    assert results["1 week"]["forecast_period"] == "1 week"
+    assert results["1 month"]["forecast_period"] == "1 month"
+    assert results["3 months"]["forecast_period"] == "3 months"
+    assert results["6 months"]["forecast_period"] == "6 months"
+    assert results["1 year"]["forecast_period"] == "1 year"

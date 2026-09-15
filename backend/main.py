@@ -174,6 +174,7 @@ class ForecastRequest(BaseModel):
     promotion: int = Field(default=0, ge=0, le=1, description="Promotion active (0 or 1)")
     seasonality: str = Field(default="Spring", description="Current season")
     epidemic: int = Field(default=0, ge=0, le=1, description="Epidemic flag (0 or 1)")
+    forecast_period: str = Field(default="1 month", description="Requested forecast horizon: 1 week, 1 month, 3 months, 6 months, or 1 year")
 
 
 class ToolTraceItem(BaseModel):
@@ -190,6 +191,8 @@ class ForecastResponse(BaseModel):
     store_id: str
     product_id: str
     category: str
+    forecast_period: str = Field(default="1 month", description="Effective forecast horizon")
+    horizon_days: int = Field(default=30, description="Effective forecast horizon in days")
     predicted_demand: float
     inventory_level: int
     gap: float
@@ -467,7 +470,7 @@ def create_forecast(payload: ForecastRequest):
     """
     try:
         raw_input = payload.model_dump()
-        result = run_agent_pipeline(raw_input)
+        result = run_agent_pipeline(raw_input, forecast_period=payload.forecast_period)
         return result
     except Exception as e:
         raise HTTPException(
