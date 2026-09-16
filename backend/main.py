@@ -5,7 +5,19 @@ from fastapi.responses import JSONResponse
 from fastapi import Request
 
 from backend.api.routes import router as api_router
-from backend.api.security import enforce_security_and_rate_limits, build_error_response, generate_request_id
+from backend.api import security as security_module
+from backend.api.security import build_error_response, generate_request_id
+from backend.config import ENABLE_AUTH, API_KEY
+
+REQUIRE_ROLE_AUTH = security_module.REQUIRE_ROLE_AUTH
+
+
+async def enforce_security_and_rate_limits(request: Request, call_next):
+    """Apply app-level security settings before delegating to the middleware."""
+    security_module.ENABLE_AUTH = ENABLE_AUTH
+    security_module.API_KEY = API_KEY
+    security_module.REQUIRE_ROLE_AUTH = REQUIRE_ROLE_AUTH
+    return await security_module.enforce_security_and_rate_limits(request, call_next)
 
 app = FastAPI(
     title="Demand Forecasting & Inventory Optimization Agent API",

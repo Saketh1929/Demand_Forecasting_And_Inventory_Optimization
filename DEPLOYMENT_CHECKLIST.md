@@ -43,3 +43,15 @@
 - App runtime: FastAPI service behind TLS-terminating infrastructure
 - Security: mTLS or gateway-level auth for internal services where available
 - Monitoring: centralized logs and alerting for unauthorized traffic and model failures
+
+## 9. Render deployment
+
+Deploy one Render Web Service using the root `Dockerfile`.
+
+- Health check path: `/`
+- FastAPI's `/api/health` endpoint is available only inside the container because Streamlit owns Render's public port.
+- Render supplies the public `PORT` automatically for Streamlit.
+- FastAPI listens internally on `BACKEND_PORT` (default `8000`).
+- Streamlit connects to FastAPI through `http://127.0.0.1:8000` inside the container.
+- Set `GEMINI_API_KEY`, `ENABLE_AUTH`, and `API_KEY` as Render environment variables.
+- No `BACKEND_URL` or second Render service is required.

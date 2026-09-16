@@ -1,7 +1,7 @@
 [
   {
-    "request_id": "fcst_20260914104118_8919",
-    "timestamp": "2026-09-14T10:41:18Z",
+    "request_id": "fcst_20260916044933_1243",
+    "timestamp": "2026-09-16T04:49:34Z",
     "payload": {
       "region": "North",
       "category": "Electronics",
@@ -21,9 +21,9 @@
     "status": "completed",
     "prediction": {
       "forecast_period": "1 month",
-      "predicted_demand_units": 285,
-      "recommended_order_quantity": 43,
-      "expected_stockout_risk": 0.1237,
+      "predicted_demand_units": 7638,
+      "recommended_order_quantity": 8866,
+      "expected_stockout_risk": 0.9673,
       "confidence_score": 0.78
     }
   }

@@ -242,7 +242,9 @@ def _extract_history(
             return arr, "passed_history_array"
         if isinstance(history_df, pd.Series):
             return history_df.dropna().to_numpy(dtype=float), "passed_history_series"
-        if isinstance(history_df, pd.DataFrame) and not history_df.empty:
+        if isinstance(history_df, pd.DataFrame):
+            if history_df.empty:
+                return np.array([], dtype=float), "passed_history_df"
             source_df = history_df
             source_label = "passed_history_df"
         else:

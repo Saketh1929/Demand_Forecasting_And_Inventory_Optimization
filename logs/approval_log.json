@@ -24,5 +24,18 @@
     "action": "approved",
     "modified_quantity": null,
     "manager_notes": "Looks good"
+  },
+  {
+    "approval_id": "APP-5DE3DC5E",
+    "logged_at": "2026-09-16T10:06:44.550066",
+    "forecast_id": "fcst_test_001",
+    "store_id": "S001",
+    "product_id": "P001",
+    "predicted_demand": 120.0,
+    "inventory_level": 50,
+    "suggested_reorder_quantity": 40,
+    "action": "approved",
+    "modified_quantity": null,
+    "manager_notes": "Looks good"
   }
 ]

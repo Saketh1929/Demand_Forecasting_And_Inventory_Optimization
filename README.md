@@ -268,6 +268,15 @@ HOST=0.0.0.0
 
 ## 🚀 Running the Application
 
+### Option 0: Run the combined Docker service
+
+```bash
+docker build -t dfio .
+docker run --rm -p 8501:8501 dfio
+```
+
+Open `http://localhost:8501`. The container runs FastAPI internally on port `8000` and exposes only Streamlit publicly.
+
 ### Option A: Run Backend & Frontend Separately
 
 **1. Start FastAPI Backend:**
@@ -278,7 +287,7 @@ uvicorn backend.main:app --reload --port 8000
 
 **2. Start Streamlit Frontend (in a new terminal):**
 ```bash
-streamlit run frontend/app.py
+DFIO_API_BASE_URL=http://127.0.0.1:8000 streamlit run Frontend/app.py
 ```
 *UI will open automatically at `http://localhost:8501`.*
 
