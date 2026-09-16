@@ -33,7 +33,7 @@ VALID_PRODUCT_IDS = [f"P{i:03d}" for i in range(1, 5)]
 MODEL_INFO = {
     "name": "dfio-demand-forecast",
     "version": "1.0.0",
-    "accuracy": 0.942,
+    "accuracy": 0.855,
 }
 APPROVED_MODEL_REGISTRY = {
     "dfio-demand-forecast": {

@@ -92,46 +92,6 @@ def render_sidebar():
         st.write(f"📅 {selected_period}")
 
         # =====================================================
-        # AI FORECAST ENGINE
-        # =====================================================
-
-        model_col1, model_col2 = st.sidebar.columns(2)
-
-        latest_response = st.session_state.get("forecast_response")
-
-        if latest_response:
-            accuracy = latest_response.get("model", {}).get("accuracy") if isinstance(latest_response, dict) and "model" in latest_response else None
-            confidence = latest_response.get("confidence_score")
-
-            accuracy_display = (
-                f"{accuracy * 100:.1f}%"
-                if isinstance(accuracy, (int, float))
-                else "---%"
-            )
-
-            confidence_display = (
-                f"{confidence * 100:.1f}%"
-                if isinstance(confidence, (int, float))
-                else "---%"
-            )
-
-        else:
-            accuracy_display = "---%"
-            confidence_display = "---%"
-
-        with model_col1:
-            st.metric(
-                "Accuracy",
-                accuracy_display
-            )
-
-        with model_col2:
-            st.metric(
-                "Confidence",
-                confidence_display
-            )
-
-        # =====================================================
         # FOOTER
         # =====================================================
 

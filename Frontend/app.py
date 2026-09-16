@@ -117,9 +117,13 @@ st.subheader(
     "Demand Forecasting & Inventory Optimization for Local Retailers"
 )
 
-st.caption(
-    "AI-powered inventory intelligence for smarter demand prediction, "
-    "stock planning and retail decision-making."
+st.markdown(
+    """
+    <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-top: 6px; margin-bottom: 18px;">
+        An intelligent decision-support platform designed to help retail managers accurately forecast SKU-level demand across diverse store locations and categories. By analyzing historical sales trends, promotional campaigns, pricing dynamics, and local market conditions, the system detects stockout risks and overstock positions in real time. It calculates optimal replenishment quantities with safety buffers and delivers actionable AI-guided recommendations to streamline inventory management and prevent lost sales.
+    </p>
+    """,
+    unsafe_allow_html=True
 )
 
 st.divider()

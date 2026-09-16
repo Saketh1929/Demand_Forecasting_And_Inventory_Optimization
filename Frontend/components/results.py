@@ -18,17 +18,14 @@ def render_results(model_status):
         stock_status = data.get("status", "N/A")
         urgency = data.get("urgency", "N/A")
         stockout_risk = data.get("expected_stockout_risk")
-        confidence = data.get("confidence_score")
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("📦 Predicted Demand", format_units(predicted_demand))
         with col2:
             st.metric("🛒 Recommended Order", format_units(recommended_order))
         with col3:
             st.metric("⚠️ Stockout Risk", f"{stockout_risk * 100:.1f}%" if isinstance(stockout_risk, (int, float)) else "N/A")
-        with col4:
-            st.metric("🎯 Confidence", f"{confidence * 100:.1f}%" if isinstance(confidence, (int, float)) else "N/A")
 
         st.subheader("📦 Inventory Context")
         context_col1, context_col2, context_col3, context_col4 = st.columns(4)
